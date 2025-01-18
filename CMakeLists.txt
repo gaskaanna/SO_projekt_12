@@ -7,8 +7,6 @@ set(CMAKE_C_STANDARD 11)
 set(CMAKE_C_EXTENSIONS ON)
 
 add_executable(SO_projekt src/main.c
-        src/Product.c
-        include/Product.h
         src/dispenser.c
         include/dispenser.h
         include/baker.h

@@ -55,12 +55,6 @@ build CMakeFiles/SO_projekt.dir/src/main.c.obj: C_COMPILER__SO_projekt_unscanned
   OBJECT_DIR = CMakeFiles\SO_projekt.dir
   OBJECT_FILE_DIR = CMakeFiles\SO_projekt.dir\src
 
-build CMakeFiles/SO_projekt.dir/src/Product.c.obj: C_COMPILER__SO_projekt_unscanned_Debug C$:/Users/Dell/CLionProjects/SO_projekt/src/Product.c || cmake_object_order_depends_target_SO_projekt
-  DEP_FILE = CMakeFiles\SO_projekt.dir\src\Product.c.obj.d
-  FLAGS = -g -std=gnu11 -fdiagnostics-color=always
-  OBJECT_DIR = CMakeFiles\SO_projekt.dir
-  OBJECT_FILE_DIR = CMakeFiles\SO_projekt.dir\src
-
 build CMakeFiles/SO_projekt.dir/src/dispenser.c.obj: C_COMPILER__SO_projekt_unscanned_Debug C$:/Users/Dell/CLionProjects/SO_projekt/src/dispenser.c || cmake_object_order_depends_target_SO_projekt
   DEP_FILE = CMakeFiles\SO_projekt.dir\src\dispenser.c.obj.d
   FLAGS = -g -std=gnu11 -fdiagnostics-color=always
@@ -73,8 +67,8 @@ build CMakeFiles/SO_projekt.dir/src/baker.c.obj: C_COMPILER__SO_projekt_unscanne
   OBJECT_DIR = CMakeFiles\SO_projekt.dir
   OBJECT_FILE_DIR = CMakeFiles\SO_projekt.dir\src
 
-build CMakeFiles/SO_projekt.dir/src/cash_register.c.obj: C_COMPILER__SO_projekt_unscanned_Debug C$:/Users/Dell/CLionProjects/SO_projekt/src/cash_register.c || cmake_object_order_depends_target_SO_projekt
-  DEP_FILE = CMakeFiles\SO_projekt.dir\src\cash_register.c.obj.d
+build CMakeFiles/SO_projekt.dir/src/cashier.c.obj: C_COMPILER__SO_projekt_unscanned_Debug C$:/Users/Dell/CLionProjects/SO_projekt/src/cashier.c || cmake_object_order_depends_target_SO_projekt
+  DEP_FILE = CMakeFiles\SO_projekt.dir\src\cashier.c.obj.d
   FLAGS = -g -std=gnu11 -fdiagnostics-color=always
   OBJECT_DIR = CMakeFiles\SO_projekt.dir
   OBJECT_FILE_DIR = CMakeFiles\SO_projekt.dir\src
@@ -93,7 +87,7 @@ build CMakeFiles/SO_projekt.dir/src/client.c.obj: C_COMPILER__SO_projekt_unscann
 #############################################
 # Link the executable SO_projekt.exe
 
-build SO_projekt.exe: C_EXECUTABLE_LINKER__SO_projekt_Debug CMakeFiles/SO_projekt.dir/src/main.c.obj CMakeFiles/SO_projekt.dir/src/Product.c.obj CMakeFiles/SO_projekt.dir/src/dispenser.c.obj CMakeFiles/SO_projekt.dir/src/baker.c.obj CMakeFiles/SO_projekt.dir/src/cash_register.c.obj CMakeFiles/SO_projekt.dir/src/client.c.obj
+build SO_projekt.exe: C_EXECUTABLE_LINKER__SO_projekt_Debug CMakeFiles/SO_projekt.dir/src/main.c.obj CMakeFiles/SO_projekt.dir/src/dispenser.c.obj CMakeFiles/SO_projekt.dir/src/baker.c.obj CMakeFiles/SO_projekt.dir/src/cashier.c.obj CMakeFiles/SO_projekt.dir/src/client.c.obj
   FLAGS = -g
   LINK_LIBRARIES = -lkernel32 -luser32 -lgdi32 -lwinspool -lshell32 -lole32 -loleaut32 -luuid -lcomdlg32 -ladvapi32
   OBJECT_DIR = CMakeFiles\SO_projekt.dir

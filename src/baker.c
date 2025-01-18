@@ -1,15 +1,13 @@
 #include "stdio.h"
 #include "stdlib.h"
 #include "string.h"
-#include "unistd.h"
-#include "time.h"
+#include <pthread.h>
 #include <stdbool.h>
-#include <sys/wait.h>
+#include "time.h"
 #include "../include/baker.h"
-#include "../include/dispenser.h"
-#include "../include/Product.h"
 
-int baker_exists = 0;
+#define MIN_BAKING_TIME 2
+#define MAX_BAKING_TIME 5
 
 void finding_not_full_dispensers(int *dispensers_to_possible_to_update, int *count) {
     for (int i = 0; i < NUM_PRODUCTS; i++) {
@@ -38,15 +36,13 @@ void adding_to_dispenser(int *dispensers_to_update, int num_dispenser_to_update)
 }
 
 void bake() {
-    printf("Baking bread...\n");
-
     srand(time(NULL));
+    printf("Baking bread...\n");
 
     int dispensers_to_possible_to_update[NUM_PRODUCTS];
     int count = 0;
 
     finding_not_full_dispensers(dispensers_to_possible_to_update, &count);
-
     printf("Count: %d\n", count);
 
     if(count < 2) {
@@ -56,7 +52,6 @@ void bake() {
     }
 
     int num_dispenser_to_update = rand() % (count - 1) + 2; // At least 2 dispensers
-
     int dispensers_to_update[num_dispenser_to_update];
     int used_indices[count];
     memset(used_indices, 0, sizeof(used_indices));
@@ -73,42 +68,31 @@ void bake() {
     for (int i = 0; i < num_dispenser_to_update; i++) {
         printf("%d ", dispensers_to_update[i]);
     }
+
     printf("\n");
-
-
     printf("Number of dispensers to update: %d\n", num_dispenser_to_update);
-
     adding_to_dispenser(dispensers_to_update, num_dispenser_to_update);
-
-//    sleep(2); // do usunięcia
-   // sleep(random(time());
     printf("Bread is ready!\n");
 }
 
-void create_baker() {
-    if (baker_exists) {
-        printf("Baker already exists.\n");
-        return;
-    }
-    pid_t baker_pid = fork();
+void *baker_thread(void *arg) {
+    srand(time(NULL));
+    printf("Baker thread started\n");
 
-    if(baker_pid < 0) {
-        perror("fork() error");
-        return;
-    }
+    while(true) {
+        sleep(2);
+        printf("Baker thread waking up\n");
 
-    if(baker_pid == 0) {
-        baker_exists = 1;
+        for(int i = 0; i < 3; i++) {
+            int bakingTime = MIN_BAKING_TIME + rand() % (MAX_BAKING_TIME - MIN_BAKING_TIME);
 
-        for (int i = 0; i < 1; i++) {
+            printf("Baking time: %d", bakingTime);
+            sleep(bakingTime);
+
+            printf("\nBaking iteration %d\n", i + 1);
             bake();
-            sleep(2);
         }
-        printf("[PID: %d] Piekarz kończy pracę.\n", getpid());
-        _exit(EXIT_SUCCESS);
-    } else {
-        baker_exists = 1;     // ustawiamy informację, że mamy już piekarza
-        g_baker.id = baker_pid;
-        printf("[PID: %d] Stworzono piekarza o PID = %d\n", getpid(), baker_pid);
+
+        pthread_exit(NULL);
     }
 }
