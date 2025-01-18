@@ -8,4 +8,10 @@ add_executable(SO_projekt src/main.c
         include/Product.h
         src/dispenser.c
         include/dispenser.h
+        include/baker.h
+        src/baker.c
+        include/cash_register.h
+        src/cash_register.c
+        src/client.c
+        include/client.h
 )

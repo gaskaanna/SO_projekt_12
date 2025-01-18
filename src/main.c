@@ -3,7 +3,8 @@
 #include <time.h>
 #include "../include/Product.h"
 #include "../include/dispenser.h"
-
+#include "../include/client.h"
+#include "../include/baker.h"
 
 int main(void) {
     init_products();
@@ -11,5 +12,9 @@ int main(void) {
 
     init_dispenser();
     show_dispenser();
+
+    bake();
+    bake();
+    bake();
     return 0;
 }
