@@ -1,6 +1,5 @@
 #include <stdio.h>
 #include "../include/dispenser.h"
-//#include "../include/product.h"
 
 Product_dispenser g_dispenser[NUM_PRODUCTS];
 

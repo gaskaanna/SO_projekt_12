@@ -1,21 +1,17 @@
-//
-// Created by Dell on 17.01.2025.
-//
+#include <unistd.h>
+#include "dispenser.h"
 
 #ifndef SO_PROJEKT_BAKER_H
 #define SO_PROJEKT_BAKER_H
 
-
-#include "dispenser.h"
+int baker_exists; // zmienna globalna czy piekarz istnieje
 
 typedef struct {
-    int id;
-
-
+    pid_t id;
 } Baker;
 
-void bake();
+static Baker g_baker;
 
-
+void create_baker();
 
 #endif //SO_PROJEKT_BAKER_H
