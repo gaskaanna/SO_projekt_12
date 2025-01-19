@@ -5,6 +5,7 @@
 #include <stdbool.h>
 #include "time.h"
 #include "../include/baker.h"
+#include "../include/global.h"
 
 #define MIN_BAKING_TIME 2
 #define MAX_BAKING_TIME 5
@@ -75,24 +76,33 @@ void bake() {
     printf("Bread is ready!\n");
 }
 
-void *baker_thread(void *arg) {
+void* baker_thread(void *arg) {
     srand(time(NULL));
     printf("Baker thread started\n");
 
-    while(true) {
+    while (!g_storeOpen) {
+        pthread_cond_wait(&g_condStore, &g_mutex);
+    }
+
+    while(1) {
         sleep(2);
-        printf("Baker thread waking up\n");
 
-        for(int i = 0; i < 3; i++) {
-            int bakingTime = MIN_BAKING_TIME + rand() % (MAX_BAKING_TIME - MIN_BAKING_TIME);
-
-            printf("Baking time: %d", bakingTime);
-            sleep(bakingTime);
-
-            printf("\nBaking iteration %d\n", i + 1);
-            bake();
+        if(!g_storeOpen) {
+            printf("Store is closed. Baker ends work.\n");
+            pthread_mutex_unlock(&g_mutex);
+            pthread_exit(NULL);
         }
 
-        pthread_exit(NULL);
+        pthread_mutex_lock(&g_mutex);
+        printf("Baker thread waking up\n");
+
+        int bakingTime = MIN_BAKING_TIME + rand() % (MAX_BAKING_TIME - MIN_BAKING_TIME);
+
+        sleep(bakingTime);
+        printf("Baking time: %d\n", bakingTime);
+
+        bake();
+
+        pthread_mutex_unlock(&g_mutex);
     }
 }

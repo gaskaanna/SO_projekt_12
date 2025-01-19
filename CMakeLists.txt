@@ -15,6 +15,10 @@ add_executable(SO_projekt src/main.c
         src/cashier.c
         src/client.c
         include/client.h
+        src/manager.c
+        include/manager.h
+        include/global.h
+        src/global.c
 )
 
 

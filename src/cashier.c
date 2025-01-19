@@ -1,9 +1,8 @@
 #include <stdio.h>
 #include <stdlib.h>
-#include <unistd.h>
 #include <pthread.h>
 #include "../include/cashier.h"
-#include "../include/dispenser.h"
+#include "../include/global.h"
 
 Cashier g_cashiers[NUM_CASHIERS];
 
@@ -12,14 +11,14 @@ void* cashier_thread(void* arg) {
     free(arg);
 
     while(true) {
-        printf("Kasa ID %d zaczela prace\n", cashierId);
+        printf("Kasa nr %d zaczela prace\n", cashierId + 1);
 
         if(g_cashiers[cashierId].is_open) {
-            printf("Kasa ID %d otwarta\n", cashierId);
+            printf("Kasa nr %d otwarta\n", cashierId + 1);
             break;
         }
 
-        printf("Kasa ID %d zamknieta\n", cashierId);
+        printf("Kasa nr %d zamknieta\n", cashierId + 1);
 
         break;
     }

@@ -2,7 +2,8 @@
 #define SO_PROJEKT_CASHIER_H
 #include <stdbool.h>
 #include <pthread.h>
-#include "../include/dispenser.h"
+#include "dispenser.h"
+#include "global.h"
 
 #define NUM_CASHIERS 3
 
