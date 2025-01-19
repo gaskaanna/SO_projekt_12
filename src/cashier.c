@@ -10,7 +10,14 @@ void* cashier_thread(void* arg) {
     int cashierId = *((int*)arg);
     free(arg);
 
-    while(true) {
+    pthread_mutex_lock(&g_mutex);
+    while (!g_storeOpen) {
+        pthread_cond_wait(&g_condStore, &g_mutex);
+    }
+    pthread_mutex_unlock(&g_mutex);
+
+    while(1) {
+
         printf("Kasa nr %d zaczela prace\n", cashierId + 1);
 
         if(g_cashiers[cashierId].is_open) {
@@ -23,7 +30,6 @@ void* cashier_thread(void* arg) {
         break;
     }
 
-    pthread_exit(NULL);
 }
 
 void init_cashiers() {

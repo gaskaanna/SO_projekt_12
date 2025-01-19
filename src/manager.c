@@ -42,7 +42,7 @@ void* manager_thread(void* arg) {
     while (1) {
         sleep(1);
         timeCounter++;
-        printf("Manager works %d\n", timeCounter);
+        printf("Manager work time: %d\n", timeCounter);
 
         if (timeCounter == 5) {
             open_shop();

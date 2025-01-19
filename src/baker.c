@@ -80,9 +80,13 @@ void* baker_thread(void *arg) {
     srand(time(NULL));
     printf("Baker thread started\n");
 
+    pthread_mutex_lock(&g_mutex);
+
     while (!g_storeOpen) {
         pthread_cond_wait(&g_condStore, &g_mutex);
     }
+
+    pthread_mutex_unlock(&g_mutex);
 
     while(1) {
         sleep(2);
