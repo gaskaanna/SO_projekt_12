@@ -3,24 +3,12 @@
 #include <stdbool.h>
 #include "unistd.h"
 #include "../include/manager.h"
+#include "../include/cashier.h"
 
-// funkcja otwarcia sklepu
-//void open_shop(){
-//    time_t now = time(NULL);
-//    struct tm *current_time = localtime(&now);
-//
-//    if ((current_time->tm_hour < open_hours[0]) ||
-//        (current_time->tm_hour == open_hours[0] && current_time->tm_min < open_hours[1]) ||
-//        (current_time->tm_hour > close_hours[0]) ||
-//        (current_time->tm_hour == close_hours[0] && current_time->tm_min > close_hours[1])) {
-//        printf("Bakery is closed\n");
-//        return;
-//    }
-//    else{
-//
-//        printf("Bakery is open\n");
-//    }
-//}
+
+
+const int MAX_CLIENTS_IN_STORE = 30;
+const int MAX_CLIENTS_PER_CASHIER = (MAX_CLIENTS_IN_STORE / NUM_CASHIERS);
 
 void open_shop() {
     pthread_mutex_lock(&g_mutex);
@@ -35,6 +23,13 @@ void close_shop() {
     pthread_mutex_unlock(&g_mutex);
 }
 
+int calculate_cashiers_needed(int currentClients) {
+    if (MAX_CLIENTS_PER_CASHIER <= 0) {
+        return 1;
+    };
+
+    return ((currentClients + MAX_CLIENTS_PER_CASHIER - 1) / MAX_CLIENTS_PER_CASHIER);
+}
 
 void* manager_thread(void* arg) {
     int timeCounter = 0;
@@ -48,10 +43,24 @@ void* manager_thread(void* arg) {
             open_shop();
         }
 
-        if (timeCounter > 30) {
+        if (timeCounter > TIME_TO_CLOSE) {
             close_shop();
             break;
         }
+
+        pthread_mutex_lock(&g_mutex);
+
+        int currentClients = g_currentClientsInStore;
+        int neededCashiers = calculate_cashiers_needed(currentClients);
+
+        printf("Current clients: %d\n", currentClients);
+
+        for(int c = 0; c < NUM_CASHIERS; c++) {
+            g_cashiers[c].is_open = c < neededCashiers;
+        }
+
+        pthread_cond_broadcast(&g_condCashier);
+        pthread_mutex_unlock(&g_mutex);
     }
 
     pthread_exit(NULL);

@@ -1,7 +1,7 @@
+#include "global.h"
+
 #ifndef SO_PROJEKT_DISPENSER_H
 #define SO_PROJEKT_DISPENSER_H
-
-#include "global.h"
 
 #define NUM_PRODUCTS 12
 #define MAX_CAPACITY 20

@@ -2,8 +2,6 @@
 #include "stdlib.h"
 #include "string.h"
 #include <pthread.h>
-#include <stdbool.h>
-#include "time.h"
 #include "../include/baker.h"
 #include "../include/global.h"
 
@@ -37,7 +35,6 @@ void adding_to_dispenser(int *dispensers_to_update, int num_dispenser_to_update)
 }
 
 void bake() {
-    srand(time(NULL));
     printf("Baking bread...\n");
 
     int dispensers_to_possible_to_update[NUM_PRODUCTS];
@@ -77,28 +74,19 @@ void bake() {
 }
 
 void* baker_thread(void *arg) {
-    srand(time(NULL));
     printf("Baker thread started\n");
 
-    pthread_mutex_lock(&g_mutex);
-
-    while (!g_storeOpen) {
-        pthread_cond_wait(&g_condStore, &g_mutex);
-    }
-
-    pthread_mutex_unlock(&g_mutex);
+    wait_for_store_open();
 
     while(1) {
         sleep(2);
+        pthread_mutex_lock(&g_mutex);
 
         if(!g_storeOpen) {
             printf("Store is closed. Baker ends work.\n");
             pthread_mutex_unlock(&g_mutex);
             pthread_exit(NULL);
         }
-
-        pthread_mutex_lock(&g_mutex);
-        printf("Baker thread waking up\n");
 
         int bakingTime = MIN_BAKING_TIME + rand() % (MAX_BAKING_TIME - MIN_BAKING_TIME);
 
