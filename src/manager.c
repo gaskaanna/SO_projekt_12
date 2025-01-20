@@ -7,9 +7,6 @@
 
 #define TIME_TO_CLOSE 60
 
-const int MAX_CLIENTS_IN_STORE = 30;
-const int MAX_CLIENTS_PER_CASHIER = (MAX_CLIENTS_IN_STORE / NUM_CASHIERS);
-
 void open_shop() {
     pthread_mutex_lock(&g_mutex);
     g_storeOpen = true;
