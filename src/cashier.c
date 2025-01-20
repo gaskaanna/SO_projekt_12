@@ -23,7 +23,6 @@ void* cashier_thread(void* arg) {
         }
 
         printf("Kasa nr %d zamknieta\n", cashierId + 1);
-
         break;
     }
 
@@ -40,7 +39,6 @@ void init_cashier_info(int id) {
         g_cashiers[id].product_sold_list[j].productId = j;
         g_cashiers[id].product_sold_list[j].quantity = 0;
     }
-
 }
 
 void init_cashiers() {

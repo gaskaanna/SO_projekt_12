@@ -8,7 +8,7 @@ void init_dispensers() {
     for (int i = 0; i < NUM_PRODUCTS; i++) {
         sprintf(g_dispenser[i].name, "Product %d", i + 1);
         g_dispenser[i].price = (float)(5 + rand() % 20);
-        g_dispenser[i].quantity = 10;
+        g_dispenser[i].quantity = 0;
         g_dispenser[i].capacity = MAX_CAPACITY;
     }
 }
@@ -28,10 +28,6 @@ void decrease_quantity(int product_id, int quantity) {
     Product_dispenser *target = &g_dispenser[target_id];
 
     if (target->quantity >= quantity) {
-        printf("%d\n", target->quantity);
         target->quantity -= quantity;
-        printf("%d\n", target->quantity);
-    } else {
-        printf("Not enough products in the dispenser.\n");
     }
 }

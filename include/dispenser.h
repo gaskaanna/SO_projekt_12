@@ -1,10 +1,8 @@
-#include "global.h"
-
 #ifndef SO_PROJEKT_DISPENSER_H
 #define SO_PROJEKT_DISPENSER_H
 
 #define NUM_PRODUCTS 12
-#define MAX_CAPACITY 20
+#define MAX_CAPACITY 30
 
 typedef struct {
     int id;

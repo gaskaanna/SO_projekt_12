@@ -24,6 +24,6 @@ int main(void) {
     pthread_join(manager, NULL);
     pthread_join(baker, NULL);
 
-    printf("[MAIN] Koniec symulacji.\n");
+    printf("[MAIN] End of symulation.\n");
     return 0;
 }

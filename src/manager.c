@@ -5,7 +5,7 @@
 #include "../include/manager.h"
 #include "../include/cashier.h"
 
-
+#define TIME_TO_CLOSE 60
 
 const int MAX_CLIENTS_IN_STORE = 30;
 const int MAX_CLIENTS_PER_CASHIER = (MAX_CLIENTS_IN_STORE / NUM_CASHIERS);

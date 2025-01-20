@@ -11,18 +11,49 @@
 #define MIN_CLIENTS_PER_BATCH 1
 #define MAX_CLIENTS_PER_BATCH 4
 
+#define MIN_NEED_PER_PRODUCT 0
+#define MAX_NEED_PER_PRODUCT 12
+
+#define SHOPPING_TIME 3
+
+void get_products_from_shopping_list(Client *client) {
+    for(int i = 0; i < NUM_PRODUCTS; i++) {
+        int currentDispenserQuantity = g_dispenser[i].quantity;
+        int needed = client->shoppingList[i].needed;
+
+        printf("\n\nDispenser ID %d has quantity %d \n", i, g_dispenser[i].quantity);
+
+        if (needed > 0 && currentDispenserQuantity > 0) {
+            int quantityToTake = needed > currentDispenserQuantity ? currentDispenserQuantity : needed;
+
+            pthread_mutex_lock(&g_mutex);
+            decrease_quantity(i, quantityToTake);
+            pthread_mutex_unlock(&g_mutex);
+
+            client->shoppingList[i].needed -= quantityToTake;
+            client->shoppingList[i].taken += quantityToTake;
+
+            printf("Client ID %d took %d products of type %d\n", client->id, quantityToTake, i);
+        } else {
+            printf("Client ID %d doesn't toke products of type %d\n", client->id, i);
+        }
+
+        printf("Dispenser ID %d has quantity %d \n\n", i, g_dispenser[i].quantity);
+    }
+}
+
 void* client_thread(void* arg) {
     Client* client = (Client*)arg;
 
     printf("Client ID %d joined\n", client->id);
     g_currentClientsInStore++;
 
-    while(g_storeOpen) {
-        sleep(1);
-    }
+    sleep(SHOPPING_TIME);
+    get_products_from_shopping_list(client);
 
     free(client);
 
+    g_currentClientsInStore--;
     pthread_exit(NULL);
 };
 
@@ -33,8 +64,10 @@ Client* init_and_get_client_info(int id) {
     client->isShopping = false;
 
     for(int j = 0; j < NUM_PRODUCTS; j++) {
+        int neededQuantity = (rand() % (MAX_NEED_PER_PRODUCT - MIN_NEED_PER_PRODUCT + 1)) + MIN_NEED_PER_PRODUCT;
+
         client->shoppingList[j].productId = j;
-        client->shoppingList[j].needed = 5;
+        client->shoppingList[j].needed = neededQuantity;
         client->shoppingList[j].taken = 0;
     }
 
@@ -42,8 +75,6 @@ Client* init_and_get_client_info(int id) {
 }
 
 void init_clients() {
-    srand(time(NULL));
-
     pthread_mutex_lock(&g_mutex);
     while (!g_storeOpen) {
         pthread_cond_wait(&g_condStore, &g_mutex);

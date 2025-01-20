@@ -23,11 +23,11 @@ void adding_to_dispenser(int *dispensers_to_update, int num_dispenser_to_update)
         Product_dispenser *target = &g_dispenser[target_id];
 
         int available_space = target->capacity - target->quantity;
+
         if (available_space > 0) {
             int quantity_to_add = rand() % available_space + 1; // Random quantity between 1 and available_space
             target->quantity += quantity_to_add;
-            printf("Added %d products to dispenser %d. New quantity: %d\n", quantity_to_add, target_id,
-                   target->quantity);
+            printf("Added %d products to dispenser %d. New quantity: %d\n", quantity_to_add, target_id, target->quantity);
         } else {
             printf("Dispenser %d is full. Cannot add more products.\n", target_id);
         }
@@ -56,9 +56,11 @@ void bake() {
 
     for (int i = 0; i < num_dispenser_to_update; i++) {
         int random_index;
+
         do {
             random_index = rand() % count;
         } while (used_indices[random_index] == 1);
+
         used_indices[random_index] = 1;
         dispensers_to_update[i] = dispensers_to_possible_to_update[random_index];
     }
