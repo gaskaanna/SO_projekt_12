@@ -12,14 +12,20 @@ int main(void) {
 
     pthread_t manager;
     pthread_t baker;
+    pthread_t cashiers[NUM_CASHIERS];
 
     init_dispensers();
 
     pthread_create(&manager, NULL, manager_thread, NULL);
     pthread_create(&baker, NULL, baker_thread, NULL);
 
-    init_cashiers();
+    init_cashiers(cashiers);
     init_clients();
+
+    for (int i = 0; i < NUM_CASHIERS; i++) {
+        printf("[MAIN] Joining cashier %d\n", i);
+        pthread_join(cashiers[i], NULL);
+    }
 
     pthread_join(manager, NULL);
     pthread_join(baker, NULL);

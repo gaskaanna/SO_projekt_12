@@ -3,10 +3,12 @@
 #include <pthread.h>
 #include <unistd.h>
 #include "../include/client.h"
+
+#include "../include/cashier.h"
 #include "../include/global.h"
 
 #define MIN_CLIENT_JOIN_TIME 1
-#define MAX_CLIENT_JOIN_TIME 3
+#define MAX_CLIENT_JOIN_TIME 2
 
 #define MIN_CLIENTS_PER_BATCH 1
 #define MAX_CLIENTS_PER_BATCH 4
@@ -14,7 +16,7 @@
 #define MIN_NEED_PER_PRODUCT 0
 #define MAX_NEED_PER_PRODUCT 12
 
-#define SHOPPING_TIME 3
+#define SHOPPING_TIME 1
 
 void get_products_from_shopping_list(Client *client) {
     for(int i = 0; i < NUM_PRODUCTS; i++) {
@@ -42,26 +44,96 @@ void get_products_from_shopping_list(Client *client) {
     }
 }
 
+void enqueueClient(CashierQueue* q, Client* client) {
+    pthread_mutex_lock(&q->mutex);
+    while (q->count == MAX_CLIENTS_PER_CASHIER) {
+        pthread_cond_wait(&q->notFull, &q->mutex);
+    }
+
+    q->clients[q->rear] = client;
+    q->rear = (q->rear + 1) % MAX_CLIENTS_PER_CASHIER;
+    q->count++;
+
+    pthread_cond_signal(&q->notEmpty);
+    pthread_mutex_unlock(&q->mutex);
+}
+
 void* client_thread(void* arg) {
     Client* client = (Client*)arg;
 
-    printf("Client ID %d joined\n", client->id);
+    printf("[CLIENT %d] Entered the store.\n", client->id);
+    pthread_mutex_lock(&g_mutex);
     g_currentClientsInStore++;
+    pthread_mutex_unlock(&g_mutex);
 
     sleep(SHOPPING_TIME);
     get_products_from_shopping_list(client);
 
+    pthread_mutex_lock(&g_mutex);
+
+    if (!g_storeOpen) {
+        printf("[CLIENT %d] Store closed right after shopping – client leaves.\n", client->id);
+        free(client);
+        g_currentClientsInStore--;
+        pthread_mutex_unlock(&g_mutex);
+        pthread_exit(NULL);
+    }
+
+    int openedCashiers[NUM_CASHIERS];
+    int openedCount = 0;
+    for (int i = 0; i < NUM_CASHIERS; i++) {
+        if (g_cashiers[i].is_open) {
+            openedCashiers[openedCount++] = i;
+        }
+    }
+    pthread_mutex_unlock(&g_mutex);
+
+    if (openedCount == 0) {
+        printf("[CLIENT %d] No open cashiers, client leaves.\n", client->id);
+        free(client);
+        pthread_mutex_lock(&g_mutex);
+        g_currentClientsInStore--;
+        pthread_mutex_unlock(&g_mutex);
+        pthread_exit(NULL);
+    }
+
+    int chosenIdx = rand() % openedCount;
+    int chosenCashierId = openedCashiers[chosenIdx];
+    printf("[CLIENT %d] Joins queue of cashier %d\n", client->id, chosenCashierId);
+
+    enqueueClient(&g_cashiers[chosenCashierId].queue, client);
+
+    if (openedCount == 0) {
+        printf("[CLIENT %d] No open cashiers, client leaves.\n", client->id);
+        free(client);
+        pthread_mutex_lock(&g_mutex);
+        g_currentClientsInStore--;
+        pthread_mutex_unlock(&g_mutex);
+        pthread_exit(NULL);
+    }
+
+    pthread_mutex_lock(&g_mutex);
+    pthread_cond_wait(&client->served, &g_mutex);
+    pthread_mutex_unlock(&g_mutex);
+
+    printf("[CLIENT %d] Leaves cashier %d and exits store.\n", client->id, chosenCashierId);
+
     free(client);
 
+    pthread_mutex_lock(&g_mutex);
     g_currentClientsInStore--;
+    pthread_mutex_unlock(&g_mutex);
+
     pthread_exit(NULL);
-};
+}
 
 Client* init_and_get_client_info(int id) {
     Client* client = malloc(sizeof(Client));
 
     client->id = id;
     client->isShopping = false;
+
+    pthread_cond_init(&client->served, NULL);
 
     for(int j = 0; j < NUM_PRODUCTS; j++) {
         int neededQuantity = (rand() % (MAX_NEED_PER_PRODUCT - MIN_NEED_PER_PRODUCT + 1)) + MIN_NEED_PER_PRODUCT;

@@ -140,9 +140,11 @@ CMakeFiles/SO_projekt.dir/src/client.c.obj: E:/00000_aps/stduia/SO\ Ania/SO_proj
   C:/Program\ Files/JetBrains/CLion\ 2024.3.2/bin/mingw/x86_64-w64-mingw32/include/time.h \
   C:/Program\ Files/JetBrains/CLion\ 2024.3.2/bin/mingw/x86_64-w64-mingw32/include/unistd.h \
   C:/Program\ Files/JetBrains/CLion\ 2024.3.2/bin/mingw/x86_64-w64-mingw32/include/vadefs.h \
+  E:/00000_aps/stduia/SO\ Ania/SO_projekt_12/include/cashier.h \
   E:/00000_aps/stduia/SO\ Ania/SO_projekt_12/include/client.h \
   E:/00000_aps/stduia/SO\ Ania/SO_projekt_12/include/dispenser.h \
-  E:/00000_aps/stduia/SO\ Ania/SO_projekt_12/include/global.h
+  E:/00000_aps/stduia/SO\ Ania/SO_projekt_12/include/global.h \
+  E:/00000_aps/stduia/SO\ Ania/SO_projekt_12/include/manager.h
 
 CMakeFiles/SO_projekt.dir/src/dispenser.c.obj: E:/00000_aps/stduia/SO\ Ania/SO_projekt_12/src/dispenser.c \
   C:/Program\ Files/JetBrains/CLion\ 2024.3.2/bin/mingw/lib/gcc/x86_64-w64-mingw32/13.1.0/include/limits.h \

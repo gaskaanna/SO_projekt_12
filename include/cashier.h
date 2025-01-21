@@ -1,5 +1,6 @@
 #include <stdbool.h>
 #include "dispenser.h"
+#include "manager.h"
 #include "client.h"
 
 #ifndef SO_PROJEKT_CASHIER_H
@@ -29,7 +30,6 @@ typedef struct {
     int id;
     bool is_open;
     Cashier_product_sold_list product_sold_list[NUM_PRODUCTS];
-
     CashierQueue queue;
 } Cashier;
 

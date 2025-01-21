@@ -5,18 +5,39 @@
 #include "../include/manager.h"
 #include "../include/cashier.h"
 
-#define TIME_TO_CLOSE 60
+#define TIME_TO_CLOSE 15
 
 void open_shop() {
     pthread_mutex_lock(&g_mutex);
     g_storeOpen = true;
-    pthread_cond_broadcast(&g_condStore);
+    printf("[MANAGER] Store is now OPEN!\n");
     pthread_mutex_unlock(&g_mutex);
 }
 
 void close_shop() {
     pthread_mutex_lock(&g_mutex);
     g_storeOpen = false;
+    printf("[MANAGER] Store is now CLOSED!\n");
+    pthread_mutex_unlock(&g_mutex);
+}
+
+void open_cashier(int cashierId) {
+    pthread_mutex_lock(&g_mutex);
+    if (!g_cashiers[cashierId].is_open) {
+        g_cashiers[cashierId].is_open = true;
+        printf("[MANAGER] Opened cashier %d\n", cashierId);
+        pthread_cond_broadcast(&g_condCashier);
+    }
+    pthread_mutex_unlock(&g_mutex);
+}
+
+void close_cashier(int cashierId) {
+    pthread_mutex_lock(&g_mutex);
+    if (g_cashiers[cashierId].is_open) {
+        g_cashiers[cashierId].is_open = false;
+        printf("[MANAGER] Closed cashier %d\n", cashierId);
+        pthread_cond_broadcast(&g_condCashier);
+    }
     pthread_mutex_unlock(&g_mutex);
 }
 
@@ -50,12 +71,22 @@ void* manager_thread(void* arg) {
         int currentClients = g_currentClientsInStore;
         int neededCashiers = calculate_cashiers_needed(currentClients);
 
+        pthread_mutex_unlock(&g_mutex);
+
         printf("Current clients: %d\n", currentClients);
 
-        for(int c = 0; c < NUM_CASHIERS; c++) {
-            g_cashiers[c].is_open = c < neededCashiers;
-        }
+        if (g_storeOpen) {
+            for(int c = 0; c < NUM_CASHIERS; c++) {
+                if (c < neededCashiers) {
+                    open_cashier(c);
 
+                } else {
+                    close_cashier(c);
+                }
+            }
+        }
+        pthread_mutex_lock(&g_mutex);
+        pthread_cond_broadcast(&g_condStore);
         pthread_cond_broadcast(&g_condCashier);
         pthread_mutex_unlock(&g_mutex);
     }
