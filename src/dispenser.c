@@ -15,10 +15,10 @@ void init_dispensers() {
 
 void show_dispenser() {
     for (int i = 0; i < NUM_PRODUCTS; i++) {
-        printf("Name: %s\n", g_dispenser[i].name);
-        printf("Price: %.2f\n", g_dispenser[i].price);
-        printf("Quantity: %d\n", g_dispenser[i].quantity);
-        printf("Capacity: %d\n", g_dispenser[i].capacity);
+        printf("[DISPENSER %d] Name: %s\n", i, g_dispenser[i].name);
+        printf("[DISPENSER %d] Price: %.2f\n", i, g_dispenser[i].price);
+        printf("[DISPENSER %d] Quantity: %d\n", i, g_dispenser[i].quantity);
+        printf("[DISPENSER %d] Capacity: %d\n", i, g_dispenser[i].capacity);
         printf("\n");
     }
 }

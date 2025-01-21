@@ -27,24 +27,24 @@ void adding_to_dispenser(int *dispensers_to_update, int num_dispenser_to_update)
         if (available_space > 0) {
             int quantity_to_add = rand() % available_space + 1; // Random quantity between 1 and available_space
             target->quantity += quantity_to_add;
-            printf("Added %d products to dispenser %d. New quantity: %d\n", quantity_to_add, target_id, target->quantity);
+            printf("[BAKER] Added %d products to dispenser %d. New quantity: %d\n", quantity_to_add, target_id, target->quantity);
         } else {
-            printf("Dispenser %d is full. Cannot add more products.\n", target_id);
+            printf("[BAKER] Dispenser %d is full. Cannot add more products.\n", target_id);
         }
     }
 }
 
 void bake() {
-    printf("Baking bread...\n");
+    printf("[BAKER] Baking bread...\n");
 
     int dispensers_to_possible_to_update[NUM_PRODUCTS];
     int count = 0;
 
     finding_not_full_dispensers(dispensers_to_possible_to_update, &count);
-    printf("Count: %d\n", count);
+    printf("[BAKER] Count of not full dispensers: %d\n", count);
 
     if(count < 2) {
-        printf("Not enough dispensers with available space.\n");
+        printf("[BAKER] Not enough dispensers with available space.\n");
         sleep(2);
         return;
     }
@@ -70,13 +70,12 @@ void bake() {
     }
 
     printf("\n");
-    printf("Number of dispensers to update: %d\n", num_dispenser_to_update);
     adding_to_dispenser(dispensers_to_update, num_dispenser_to_update);
-    printf("Bread is ready!\n");
+    printf("[BAKER] Bread is ready!\n");
 }
 
 void* baker_thread(void *arg) {
-    printf("Baker thread started\n");
+    printf("[BAKER] Baker thread started\n");
 
     wait_for_store_open();
 
@@ -85,7 +84,7 @@ void* baker_thread(void *arg) {
         pthread_mutex_lock(&g_mutex);
 
         if(!g_storeOpen) {
-            printf("Store is closed. Baker ends work.\n");
+            printf("[BAKER] Store is closed. Baker ends work.\n");
             pthread_mutex_unlock(&g_mutex);
             pthread_exit(NULL);
         }
@@ -93,7 +92,7 @@ void* baker_thread(void *arg) {
         int bakingTime = MIN_BAKING_TIME + rand() % (MAX_BAKING_TIME - MIN_BAKING_TIME);
 
         sleep(bakingTime);
-        printf("Baking time: %d\n", bakingTime);
+        printf("[BAKER] Baking time: %d\n", bakingTime);
 
         bake();
 

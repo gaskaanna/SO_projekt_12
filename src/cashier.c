@@ -79,6 +79,9 @@ void* cashier_thread(void* arg) {
 
             if (!storeStillOpen) {
                 printf("[CASHIER %d] No clients and store closed -> exit.\n", cashierId);
+                pthread_mutex_lock(&g_mutex);
+                pthread_cond_signal(&client->served);
+                pthread_mutex_unlock(&g_mutex);
                 break;
             }
             sleep(1);

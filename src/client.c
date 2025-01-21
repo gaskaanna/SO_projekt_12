@@ -23,7 +23,7 @@ void get_products_from_shopping_list(Client *client) {
         int currentDispenserQuantity = g_dispenser[i].quantity;
         int needed = client->shoppingList[i].needed;
 
-        printf("\n\nDispenser ID %d has quantity %d \n", i, g_dispenser[i].quantity);
+        printf("\n\n[CLIENT %d] Dispenser ID %d has quantity before take %d \n", client->id, i, g_dispenser[i].quantity);
 
         if (needed > 0 && currentDispenserQuantity > 0) {
             int quantityToTake = needed > currentDispenserQuantity ? currentDispenserQuantity : needed;
@@ -35,24 +35,31 @@ void get_products_from_shopping_list(Client *client) {
             client->shoppingList[i].needed -= quantityToTake;
             client->shoppingList[i].taken += quantityToTake;
 
-            printf("Client ID %d took %d products of type %d\n", client->id, quantityToTake, i);
+            printf("[CLIENT %d] Took %d products of type %d\n", client->id, quantityToTake, i);
         } else {
-            printf("Client ID %d doesn't toke products of type %d\n", client->id, i);
+            printf("[CLIENT %d] Doesn't toke products of type %d\n", client->id, i);
         }
 
-        printf("Dispenser ID %d has quantity %d \n\n", i, g_dispenser[i].quantity);
+        printf("[CLIENT %d] Dispenser ID %d has quantity %d \n\n", i, g_dispenser[i].quantity);
     }
 }
 
 void enqueueClient(CashierQueue* q, Client* client) {
     pthread_mutex_lock(&q->mutex);
-    while (q->count == MAX_CLIENTS_PER_CASHIER) {
+    while (q->count == MAX_CLIENTS_PER_CASHIER && g_storeOpen) {
         pthread_cond_wait(&q->notFull, &q->mutex);
     }
+    pthread_mutex_unlock(&q->mutex);
+
+    pthread_mutex_lock(&q->mutex);
 
     q->clients[q->rear] = client;
     q->rear = (q->rear + 1) % MAX_CLIENTS_PER_CASHIER;
     q->count++;
+
+    if (!g_storeOpen) {
+        return;
+    }
 
     pthread_cond_signal(&q->notEmpty);
     pthread_mutex_unlock(&q->mutex);

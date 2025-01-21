@@ -55,7 +55,7 @@ void* manager_thread(void* arg) {
     while (1) {
         sleep(1);
         timeCounter++;
-        printf("Manager work time: %d\n", timeCounter);
+        printf("[MANAGER] Manager work time: %d\n", timeCounter);
 
         if (timeCounter == 5) {
             open_shop();
@@ -73,7 +73,7 @@ void* manager_thread(void* arg) {
 
         pthread_mutex_unlock(&g_mutex);
 
-        printf("Current clients: %d\n", currentClients);
+        printf("[MANAGER] Current clients: %d\n", currentClients);
 
         if (g_storeOpen) {
             for(int c = 0; c < NUM_CASHIERS; c++) {
