@@ -2,6 +2,7 @@
 #include <stdlib.h>
 #include <pthread.h>
 #include <unistd.h>
+#include <stdarg.h>
 #include "../include/client.h"
 
 #include "../include/cashier.h"
@@ -18,12 +19,61 @@
 
 #define SHOPPING_TIME 1
 
+FILE* clientLogFile = NULL;
+
+void init_client_log() {
+    char clientLogPath[300];
+    snprintf(clientLogPath, sizeof(clientLogPath), "%s/client.txt", g_logBasePath);
+
+    if (mkdir("../logs") == -1) {
+        if (errno != EEXIST) {
+            fprintf(stderr, "Could not create directory 'logs': %s\n", strerror(errno));
+        }
+    }
+    if (mkdir(g_logBasePath) == -1) {
+        if (errno != EEXIST) {
+            fprintf(stderr, "Could not create directory '%s': %s\n", g_logBasePath, strerror(errno));
+        }
+    }
+
+    clientLogFile = fopen( clientLogPath, "w");
+
+    if (clientLogFile) {
+        setvbuf(clientLogFile, NULL, _IOLBF, 0);
+    } else {
+        fprintf(stderr, "Could not open log file '%s': %s\n", clientLogPath, strerror(errno));
+    }
+}
+
+void log_client(const char *format, ...)
+{
+
+    if (clientLogFile) {
+        va_list args;
+        va_start(args, format);
+        vfprintf(clientLogFile, format, args);
+        va_end(args);
+
+        fflush(clientLogFile);
+    }
+}
+
+void close_client_log(void) {
+    if (clientLogFile) {
+        fclose(clientLogFile);
+        clientLogFile = NULL;
+    }
+}
+
 void get_products_from_shopping_list(Client *client) {
     for(int i = 0; i < NUM_PRODUCTS; i++) {
         int currentDispenserQuantity = g_dispenser[i].quantity;
         int needed = client->shoppingList[i].needed;
 
         printf("\n\n[CLIENT %d] Dispenser ID %d has quantity before take %d \n", client->id, i, g_dispenser[i].quantity);
+
+        global_log_main("[time=%d]  [CLIENT %d] Dispenser ID %d has quantity before take %d \n", g_timeCounter,client->id, i, g_dispenser[i].quantity);
+        log_client("[time=%d]  [CLIENT %d] Dispenser ID %d has quantity before take %d \n",g_timeCounter, client->id, i, g_dispenser[i].quantity);
 
         if (needed > 0 && currentDispenserQuantity > 0) {
             int quantityToTake = needed > currentDispenserQuantity ? currentDispenserQuantity : needed;
@@ -36,11 +86,20 @@ void get_products_from_shopping_list(Client *client) {
             client->shoppingList[i].taken += quantityToTake;
 
             printf("[CLIENT %d] Took %d products of type %d\n", client->id, quantityToTake, i);
+
+            global_log_main("[time=%d]  [CLIENT %d] Took %d products of type %d\n",g_timeCounter, client->id, quantityToTake, i);
+            log_client("[time=%d]  [CLIENT %d] Took %d products of type %d\n", g_timeCounter,client->id, quantityToTake, i);
+
         } else {
             printf("[CLIENT %d] Doesn't toke products of type %d\n", client->id, i);
+            global_log_main("[time=%d]  [CLIENT %d] Doesn't toke products of type %d\n",g_timeCounter, client->id, i);
+            log_client("[time=%d]  [CLIENT %d] Doesn't toke products of type %d\n",g_timeCounter, client->id, i);
         }
 
         printf("[CLIENT %d] Dispenser ID %d has quantity %d \n\n", i, g_dispenser[i].quantity);
+
+        global_log_main("[time=%d]  [CLIENT %d] Dispenser ID %d has quantity %d \n\n",g_timeCounter, i, g_dispenser[i].quantity);
+        log_client("[time=%d]  [CLIENT %d] Dispenser ID %d has quantity %d \n\n",g_timeCounter, i, g_dispenser[i].quantity);
     }
 }
 
@@ -69,6 +128,10 @@ void* client_thread(void* arg) {
     Client* client = (Client*)arg;
 
     printf("[CLIENT %d] Entered the store.\n", client->id);
+
+    global_log_main("[time=%d]  [CLIENT %d] Entered the store.\n",g_timeCounter, client->id);
+    log_client("[time=%d]  [CLIENT %d] Entered the store.\n", g_timeCounter,client->id);
+
     pthread_mutex_lock(&g_mutex);
     g_currentClientsInStore++;
     pthread_mutex_unlock(&g_mutex);
@@ -80,6 +143,10 @@ void* client_thread(void* arg) {
 
     if (!g_storeOpen) {
         printf("[CLIENT %d] Store closed right after shopping – client leaves.\n", client->id);
+
+        global_log_main("[time=%d]  [CLIENT %d] Store closed right after shopping – client leaves.\n",g_timeCounter, client->id);
+        log_client("[time=%d]  [CLIENT %d] Store closed right after shopping – client leaves.\n",g_timeCounter, client->id);
+
         free(client);
         g_currentClientsInStore--;
         pthread_mutex_unlock(&g_mutex);
@@ -97,6 +164,10 @@ void* client_thread(void* arg) {
 
     if (openedCount == 0) {
         printf("[CLIENT %d] No open cashiers, client leaves.\n", client->id);
+
+        global_log_main("[time=%d]  [CLIENT %d] No open cashiers, client leaves.\n",g_timeCounter, client->id);
+        log_client("[time=%d]  [CLIENT %d] No open cashiers, client leaves.\n", g_timeCounter,client->id);
+
         free(client);
         pthread_mutex_lock(&g_mutex);
         g_currentClientsInStore--;
@@ -108,10 +179,17 @@ void* client_thread(void* arg) {
     int chosenCashierId = openedCashiers[chosenIdx];
     printf("[CLIENT %d] Joins queue of cashier %d\n", client->id, chosenCashierId);
 
+    global_log_main("[time=%d]  [CLIENT %d] Joins queue of cashier %d\n",g_timeCounter, client->id, chosenCashierId);
+    log_client("[time=%d]  [CLIENT %d] Joins queue of cashier %d\n",g_timeCounter, client->id, chosenCashierId);
+
     enqueueClient(&g_cashiers[chosenCashierId].queue, client);
 
     if (openedCount == 0) {
         printf("[CLIENT %d] No open cashiers, client leaves.\n", client->id);
+
+        global_log_main("[time=%d]  [CLIENT %d] No open cashiers, client leaves.\n", g_timeCounter,client->id);
+        log_client("[time=%d]  [CLIENT %d] No open cashiers, client leaves.\n",g_timeCounter, client->id);
+
         free(client);
         pthread_mutex_lock(&g_mutex);
         g_currentClientsInStore--;
@@ -124,6 +202,9 @@ void* client_thread(void* arg) {
     pthread_mutex_unlock(&g_mutex);
 
     printf("[CLIENT %d] Leaves cashier %d and exits store.\n", client->id, chosenCashierId);
+
+    global_log_main("[time=%d]  [CLIENT %d] Leaves cashier %d and exits store.\n",g_timeCounter, client->id, chosenCashierId);
+    log_client("[time=%d]  [CLIENT %d] Leaves cashier %d and exits store.\n",g_timeCounter, client->id, chosenCashierId);
 
     free(client);
 
@@ -188,3 +269,4 @@ void init_clients() {
 
     printf("[INIT_CLIENTS] Store closed. Stoped creating clients.\n");
 }
+

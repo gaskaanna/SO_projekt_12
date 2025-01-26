@@ -3,8 +3,6 @@
 #include <stdarg.h>
 #include <errno.h>
 #include <stdio.h>
-#include <sys/stat.h>
-#include <sys/types.h>
 #include <pthread.h>
 #include "../include/global.h"
 #include <direct.h>

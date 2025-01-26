@@ -2,11 +2,13 @@
 #include <stdlib.h>
 #include <pthread.h>
 #include <unistd.h>
+#include <stdarg.h>
 #include "../include/global.h"
 #include "../include/manager.h"
 #include "../include/cashier.h"
 
 #define SERVE_TIME 2
+FILE* cashierLogFile = NULL;
 
 Cashier g_cashiers[NUM_CASHIERS];
 
@@ -27,6 +29,45 @@ Client* dequeueClient(CashierQueue* q) {
     return client;
 }
 
+
+void init_cashier_log() {
+    char cashierLogPath[300];
+    snprintf(cashierLogPath, sizeof(cashierLogPath), "%s/cashier.txt", g_logBasePath);
+
+    if (mkdir("../logs") == -1) {
+        if (errno != EEXIST) {
+            fprintf(stderr, "Could not create directory 'logs': %s\n", strerror(errno));
+        }
+    }
+    if (mkdir(g_logBasePath) == -1) {
+        if (errno != EEXIST) {
+            fprintf(stderr, "Could not create directory '%s': %s\n", g_logBasePath, strerror(errno));
+        }
+    }
+
+    cashierLogFile = fopen( cashierLogPath, "w");
+
+    if (cashierLogFile) {
+        setvbuf(cashierLogFile, NULL, _IOLBF, 0);
+    } else {
+        fprintf(stderr, "Could not open log file '%s': %s\n", cashierLogPath, strerror(errno));
+    }
+}
+
+void log_cashier(const char *format, ...)
+{
+
+    if (cashierLogFile) {
+        va_list args;
+        va_start(args, format);
+        vfprintf(cashierLogFile, format, args);
+        va_end(args);
+
+        fflush(cashierLogFile);
+    }
+}
+
+
 void* cashier_thread(void* arg) {
     int cashierId = *((int*)arg);
     free(arg);
@@ -38,6 +79,9 @@ void* cashier_thread(void* arg) {
     pthread_mutex_unlock(&g_mutex);
 
     printf("[CASHIER %d] Thread started.\n", cashierId);
+
+    global_log_main("[time=%d]  [CASHIER %d] Thread started.\n", g_timeCounter,cashierId);
+    log_cashier("[time=%d]  [CASHIER %d] Thread started.\n",g_timeCounter, cashierId);
 
     while(1) {
         pthread_mutex_lock(&g_mutex);
@@ -55,15 +99,26 @@ void* cashier_thread(void* arg) {
 
         if (!storeStillOpen && !cashierOpen) {
             printf("[CASHIER %d] Store closed and cashier closed -> exit.\n", cashierId);
+
+            global_log_main("[time=%d]  [CASHIER %d] Store closed and cashier closed -> exit.\n", g_timeCounter,cashierId);
+            log_cashier("[time=%d]  [CASHIER %d] Store closed and cashier closed -> exit.\n", g_timeCounter,cashierId);
+
             break;
         }
 
         printf("[CASHIER %d] Store open: %d, Cashier open: %d\n", cashierId, storeStillOpen, cashierOpen);
 
+        global_log_main("[time=%d]  [CASHIER %d] Store open: %d, Cashier open: %d\n",g_timeCounter, cashierId, storeStillOpen, cashierOpen);
+        log_cashier("[time=%d]  [CASHIER %d] Store open: %d, Cashier open: %d\n",g_timeCounter, cashierId, storeStillOpen, cashierOpen);
+
         Client* client = dequeueClient(&g_cashiers[cashierId].queue);
 
         if (client != NULL && storeStillOpen) {
             printf("[CASHIER %d] Serving client %d...\n", cashierId, client->id);
+
+            global_log_main("[time=%d]  [CASHIER %d] Serving client %d...\n", g_timeCounter,cashierId, client->id);
+            log_cashier("[time=%d]  [CASHIER %d] Serving client %d...\n",g_timeCounter, cashierId, client->id);
+
             sleep(SERVE_TIME);
 
             pthread_mutex_lock(&g_mutex);
@@ -71,6 +126,9 @@ void* cashier_thread(void* arg) {
             pthread_mutex_unlock(&g_mutex);
 
             printf("[CASHIER %d] Finished serving client %d.\n", cashierId, client->id);
+
+            global_log_main("[time=%d]  [CASHIER %d] Finished serving client %d.\n",g_timeCounter, cashierId, client->id);
+            log_cashier("[time=%d]  [CASHIER %d] Finished serving client %d.\n",g_timeCounter, cashierId, client->id);
         }
         else {
             pthread_mutex_lock(&g_mutex);
@@ -79,6 +137,10 @@ void* cashier_thread(void* arg) {
 
             if (!storeStillOpen) {
                 printf("[CASHIER %d] No clients and store closed -> exit.\n", cashierId);
+
+                global_log_main("[time=%d]  [CASHIER %d] No clients and store closed -> exit.\n", g_timeCounter,cashierId);
+                log_cashier("[time=%d]  [CASHIER %d] No clients and store closed -> exit.\n",g_timeCounter, cashierId);
+
                 pthread_mutex_lock(&g_mutex);
                 pthread_cond_signal(&client->served);
                 pthread_mutex_unlock(&g_mutex);
@@ -126,4 +188,3 @@ void init_cashiers(pthread_t cashiers[NUM_CASHIERS]) {
     }
 
 }
-

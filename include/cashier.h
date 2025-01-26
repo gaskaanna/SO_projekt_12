@@ -10,6 +10,7 @@
 
 #define MAX_CLIENTS_PER_CASHIER (MAX_CLIENTS_IN_STORE / NUM_CASHIERS)
 
+
 typedef struct {
     Client* clients[MAX_CLIENTS_PER_CASHIER];
     int front;

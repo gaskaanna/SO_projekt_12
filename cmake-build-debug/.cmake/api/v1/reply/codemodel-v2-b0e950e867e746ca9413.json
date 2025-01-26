@@ -49,12 +49,12 @@
 	"kind" : "codemodel",
 	"paths" : 
 	{
-		"build" : "E:/00000_aps/stduia/SO Ania/SO_projekt_12/cmake-build-debug",
-		"source" : "E:/00000_aps/stduia/SO Ania/SO_projekt_12"
+		"build" : "C:/Users/Dell/CLionProjects/SO_projekt/cmake-build-debug",
+		"source" : "C:/Users/Dell/CLionProjects/SO_projekt"
 	},
 	"version" : 
 	{
 		"major" : 2,
-		"minor" : 7
+		"minor" : 6
 	}
 }

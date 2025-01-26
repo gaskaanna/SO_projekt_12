@@ -37,6 +37,7 @@ int main(void) {
     pthread_join(manager, NULL);
     pthread_join(baker, NULL);
 
+    global_close_main_log();
 
     printf("[MAIN] End of symulation.\n");
     return 0;
