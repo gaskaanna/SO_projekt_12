@@ -1,14 +1,21 @@
 #include "stdio.h"
 #include "stdlib.h"
 #include "string.h"
+#include <time.h>
 #include <pthread.h>
+#include "../include/global.h"
 #include "../include/manager.h"
 #include "../include/baker.h"
 #include "../include/cashier.h"
-#include "../include/client.h"
 
 int main(void) {
     srand(time(NULL));
+    time_t now = time(NULL);
+    struct tm* tinfo = localtime(&now);
+
+    strftime(g_logBasePath, sizeof(g_logBasePath), "../logs/%d_%m_%Y_%H-%M-%S", tinfo);
+
+    global_init_main_log();
 
     pthread_t manager;
     pthread_t baker;
@@ -29,6 +36,7 @@ int main(void) {
 
     pthread_join(manager, NULL);
     pthread_join(baker, NULL);
+
 
     printf("[MAIN] End of symulation.\n");
     return 0;

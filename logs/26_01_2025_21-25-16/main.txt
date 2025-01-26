@@ -1,0 +1,10 @@
+[time=1] Manager also logs to main.
+[time=2] Manager also logs to main.
+[time=3] Manager also logs to main.
+[time=4] Manager also logs to main.
+[time=5] Manager also logs to main.
+[time=6] Manager also logs to main.
+[time=7] Manager also logs to main.
+[time=8] Manager also logs to main.
+[time=9] Manager also logs to main.
+[time=10] Manager also logs to main.

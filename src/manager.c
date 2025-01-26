@@ -50,18 +50,23 @@ int calculate_cashiers_needed(int currentClients) {
 }
 
 void* manager_thread(void* arg) {
-    int timeCounter = 0;
-
     while (1) {
         sleep(1);
-        timeCounter++;
-        printf("[MANAGER] Manager work time: %d\n", timeCounter);
+        pthread_mutex_lock(&g_mutex);
+        g_timeCounter++;
+        int currentTime = g_timeCounter;
+        pthread_mutex_unlock(&g_mutex);
 
-        if (timeCounter == 5) {
+        printf("[MANAGER] Manager work time: %d\n", currentTime);
+
+        global_log_main("[time=%d] Manager also logs to main.\n", currentTime);
+
+
+        if (currentTime == 5) {
             open_shop();
         }
 
-        if (timeCounter > TIME_TO_CLOSE) {
+        if (currentTime > TIME_TO_CLOSE) {
             close_shop();
             break;
         }
