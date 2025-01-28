@@ -1,44 +1,65 @@
-#include "stdio.h"
-#include "stdlib.h"
-#include "string.h"
-#include <time.h>
-#include <pthread.h>
-#include "../include/global.h"
-#include "../include/manager.h"
-#include "../include/baker.h"
+#define _POSIX_C_SOURCE 200809L
+
+#include <stdio.h>
+#include <stdlib.h>
+#include <signal.h>
+#include <sys/wait.h>
+
+#include "../include/shared_memory.h"
+#include "../include/main.h"
 #include "../include/cashier.h"
 
-int main(void) {
-    srand(time(NULL));
-    time_t now = time(NULL);
-    struct tm* tinfo = localtime(&now);
+#define MIN_INIT_CLIENTS 5
+#define MAX_INIT_CLIENTS 10
 
-    strftime(g_logBasePath, sizeof(g_logBasePath), "../logs/%d_%m_%Y_%H-%M-%S", tinfo);
+pid_t my_pid;
+int g_currentTime = 0;
+int created_clients = 0;
 
-    global_init_main_log();
+int calculate_cashiers_needed(int currentClients) {
+    int needed_cashiers = 1;
 
-    pthread_t manager;
-    pthread_t baker;
-    pthread_t cashiers[NUM_CASHIERS];
-
-    init_dispensers();
-
-    pthread_create(&manager, NULL, manager_thread, NULL);
-    pthread_create(&baker, NULL, baker_thread, NULL);
-
-    init_cashiers(cashiers);
-    init_clients();
-
-    for (int i = 0; i < NUM_CASHIERS; i++) {
-        printf("[MAIN] Joining cashier %d\n", i);
-        pthread_join(cashiers[i], NULL);
+    for (int i = 1; i < NUMBER_OF_CASHIERS; i++) {
+        if (currentClients > i * MAX_CLIENTS_PER_CASHIER) {
+            needed_cashiers++;
+        }
     }
 
-    pthread_join(manager, NULL);
-    pthread_join(baker, NULL);
+    return needed_cashiers;
+}
 
-    global_close_main_log();
+int calculate_new_clients() {
+    int new_clients = rand() % (MAX_INIT_CLIENTS - MIN_INIT_CLIENTS + 1) + MIN_INIT_CLIENTS;
+    return new_clients;
+}
 
-    printf("[MAIN] End of symulation.\n");
-    return 0;
+void activate_cashier(int cashier_id) {
+    if (!shared_memory->cashier_active[cashier_id]) {
+        if (kill(shared_memory->cashier_pids[cashier_id], SIGUSR1) == -1) {
+            perror("Error sending SIGUSR1");
+        }
+    }
+}
+
+void deactivate_cashier(int cashier_id) {
+    if (shared_memory->cashier_active[cashier_id]) {
+        if (kill(shared_memory->cashier_pids[cashier_id], SIGUSR2) == -1) {
+            perror("Error sending SIGUSR2");
+        }
+    }
+}
+
+void stop_simulation() {
+    kill(shared_memory->baker_pid, SIGTERM);
+
+    for(int i = 0; i < NUMBER_OF_CASHIERS; i++) {
+        kill(shared_memory->cashier_pids[i], SIGTERM);
+    }
+
+    int status;
+    waitpid(shared_memory->baker_pid, &status, 0);
+
+    for(int i = 0; i < NUMBER_OF_CASHIERS; i++) {
+        waitpid(shared_memory->cashier_pids[i], &status, 0);
+    }
 }

@@ -1,190 +1,154 @@
-#include <stdio.h>
-#include <stdlib.h>
-#include <pthread.h>
-#include <unistd.h>
-#include <stdarg.h>
-#include "../include/global.h"
-#include "../include/manager.h"
+#define _POSIX_C_SOURCE 200809L
+
 #include "../include/cashier.h"
+#include <stdio.h>
+#include <sys/types.h>
+#include <stdlib.h>
+#include <unistd.h>
+#include <signal.h>
+#include <fcntl.h>
+#include <sys/wait.h>
+#include <time.h>
+#include "../include/shared_memory.h"
+#include "../include/logs.h"
+#include "../include/queue_utils.h"
 
-#define SERVE_TIME 2
-FILE* cashierLogFile = NULL;
+volatile sig_atomic_t cashier_running = 1;
+volatile sig_atomic_t cashier_active = 0;
+volatile sig_atomic_t last_signal = 0;
 
-Cashier g_cashiers[NUM_CASHIERS];
+int current_cashier_id;
 
-Client* dequeueClient(CashierQueue* q) {
-    pthread_mutex_lock(&q->mutex);
-
-    while (q->count == 0 && g_storeOpen) {
-        pthread_cond_wait(&q->notEmpty, &q->mutex);
-    }
-
-    Client* client = q->clients[q->front];
-    q->front = (q->front + 1) % MAX_CLIENTS_PER_CASHIER;
-    q->count--;
-
-    pthread_cond_signal(&q->notFull);
-    pthread_mutex_unlock(&q->mutex);
-
-    return client;
+void sleep_for_microseconds(long microseconds) {
+    struct timespec ts;
+    ts.tv_sec = microseconds / 1000000;
+    ts.tv_nsec = (microseconds % 1000000) * 1000;
+    nanosleep(&ts, NULL);
 }
 
+void cashier_signal_handler(int signum) {
+    last_signal = signum;
 
-void init_cashier_log() {
-    char cashierLogPath[300];
-    snprintf(cashierLogPath, sizeof(cashierLogPath), "%s/cashier.txt", g_logBasePath);
-
-    if (mkdir("../logs") == -1) {
-        if (errno != EEXIST) {
-            fprintf(stderr, "Could not create directory 'logs': %s\n", strerror(errno));
-        }
-    }
-    if (mkdir(g_logBasePath) == -1) {
-        if (errno != EEXIST) {
-            fprintf(stderr, "Could not create directory '%s': %s\n", g_logBasePath, strerror(errno));
-        }
-    }
-
-    cashierLogFile = fopen( cashierLogPath, "w");
-
-    if (cashierLogFile) {
-        setvbuf(cashierLogFile, NULL, _IOLBF, 0);
-    } else {
-        fprintf(stderr, "Could not open log file '%s': %s\n", cashierLogPath, strerror(errno));
-    }
+    if (signum == SIGTERM) cashier_running = 0;
+    if (signum == SIGUSR1) cashier_active = 1;
+    if (signum == SIGUSR2) cashier_active = 0;
 }
 
-void log_cashier(const char *format, ...)
-{
+void init_cashier_signals(void) {
+    struct sigaction sa;
+    sa.sa_handler = cashier_signal_handler;
+    sigemptyset(&sa.sa_mask);
+    sa.sa_flags = 0;
 
-    if (cashierLogFile) {
-        va_list args;
-        va_start(args, format);
-        vfprintf(cashierLogFile, format, args);
-        va_end(args);
-
-        fflush(cashierLogFile);
+    if (sigaction(SIGTERM, &sa, NULL) == -1) {
+        perror("Error setting up SIGTERM handler");
+        exit(EXIT_FAILURE);
+    }
+    if (sigaction(SIGUSR1, &sa, NULL) == -1) {
+        perror("Error setting up SIGUSR1 handler");
+        exit(EXIT_FAILURE);
+    }
+    if (sigaction(SIGUSR2, &sa, NULL) == -1) {
+        perror("Error setting up SIGUSR2 handler");
+        exit(EXIT_FAILURE);
     }
 }
 
+void read_cashier_signal(int id) {
+    if (last_signal == 0) return;
 
-void* cashier_thread(void* arg) {
-    int cashierId = *((int*)arg);
-    free(arg);
-
-    pthread_mutex_lock(&g_mutex);
-    while (!g_storeOpen) {
-        pthread_cond_wait(&g_condStore, &g_mutex);
+    if (last_signal == SIGTERM) send_log(PROCESS_CASHIER, "Cashier %d shutting down...\n", id);
+    if (last_signal == SIGUSR1) {
+        shared_memory->cashier_active[id] = true;
+        send_log(PROCESS_CASHIER, "Cashier %d opening register\n", id);
     }
-    pthread_mutex_unlock(&g_mutex);
-
-    printf("[CASHIER %d] Thread started.\n", cashierId);
-
-    global_log_main("[time=%d]  [CASHIER %d] Thread started.\n", g_timeCounter,cashierId);
-    log_cashier("[time=%d]  [CASHIER %d] Thread started.\n",g_timeCounter, cashierId);
-
-    while(1) {
-        pthread_mutex_lock(&g_mutex);
-        bool storeStillOpen = g_storeOpen;
-        bool cashierOpen    = g_cashiers[cashierId].is_open;
-        pthread_mutex_unlock(&g_mutex);
-
-        pthread_mutex_lock(&g_mutex);
-        while (!g_cashiers[cashierId].is_open && g_storeOpen) {
-            pthread_cond_wait(&g_condCashier, &g_mutex);
-        }
-        storeStillOpen = g_storeOpen;
-        cashierOpen    = g_cashiers[cashierId].is_open;
-        pthread_mutex_unlock(&g_mutex);
-
-        if (!storeStillOpen && !cashierOpen) {
-            printf("[CASHIER %d] Store closed and cashier closed -> exit.\n", cashierId);
-
-            global_log_main("[time=%d]  [CASHIER %d] Store closed and cashier closed -> exit.\n", g_timeCounter,cashierId);
-            log_cashier("[time=%d]  [CASHIER %d] Store closed and cashier closed -> exit.\n", g_timeCounter,cashierId);
-
-            break;
-        }
-
-        printf("[CASHIER %d] Store open: %d, Cashier open: %d\n", cashierId, storeStillOpen, cashierOpen);
-
-        global_log_main("[time=%d]  [CASHIER %d] Store open: %d, Cashier open: %d\n",g_timeCounter, cashierId, storeStillOpen, cashierOpen);
-        log_cashier("[time=%d]  [CASHIER %d] Store open: %d, Cashier open: %d\n",g_timeCounter, cashierId, storeStillOpen, cashierOpen);
-
-        Client* client = dequeueClient(&g_cashiers[cashierId].queue);
-
-        if (client != NULL && storeStillOpen) {
-            printf("[CASHIER %d] Serving client %d...\n", cashierId, client->id);
-
-            global_log_main("[time=%d]  [CASHIER %d] Serving client %d...\n", g_timeCounter,cashierId, client->id);
-            log_cashier("[time=%d]  [CASHIER %d] Serving client %d...\n",g_timeCounter, cashierId, client->id);
-
-            sleep(SERVE_TIME);
-
-            pthread_mutex_lock(&g_mutex);
-            pthread_cond_signal(&client->served);
-            pthread_mutex_unlock(&g_mutex);
-
-            printf("[CASHIER %d] Finished serving client %d.\n", cashierId, client->id);
-
-            global_log_main("[time=%d]  [CASHIER %d] Finished serving client %d.\n",g_timeCounter, cashierId, client->id);
-            log_cashier("[time=%d]  [CASHIER %d] Finished serving client %d.\n",g_timeCounter, cashierId, client->id);
-        }
-        else {
-            pthread_mutex_lock(&g_mutex);
-            storeStillOpen = g_storeOpen;
-            pthread_mutex_unlock(&g_mutex);
-
-            if (!storeStillOpen) {
-                printf("[CASHIER %d] No clients and store closed -> exit.\n", cashierId);
-
-                global_log_main("[time=%d]  [CASHIER %d] No clients and store closed -> exit.\n", g_timeCounter,cashierId);
-                log_cashier("[time=%d]  [CASHIER %d] No clients and store closed -> exit.\n",g_timeCounter, cashierId);
-
-                pthread_mutex_lock(&g_mutex);
-                pthread_cond_signal(&client->served);
-                pthread_mutex_unlock(&g_mutex);
-                break;
-            }
-            sleep(1);
-        }
+    if (last_signal == SIGUSR2) {
+        shared_memory->cashier_active[id] = false;
+        send_log(PROCESS_CASHIER, "Cashier %d closing register\n", id);
     }
 
-    pthread_exit(NULL);
+    last_signal = 0;
 }
 
-void init_cashier_queue(CashierQueue* q) {
-    q->front = 0;
-    q->rear = 0;
-    q->count = 0;
-    pthread_mutex_init(&q->mutex, NULL);
-    pthread_cond_init(&q->notEmpty, NULL);
-    pthread_cond_init(&q->notFull, NULL);
+void log_cashier_status(int id) {
+    send_log(PROCESS_CASHIER, "Cashier %d status: %s, queue size: %d\n", id,
+            shared_memory->cashier_active[id] ? "active" : "inactive",
+            shared_memory->cashier_queues[id].size);
 }
 
-static void init_cashier_info(int id) {
-    bool isOpen = id == 0;
-
-    g_cashiers[id].id = id;
-    g_cashiers[id].is_open = isOpen;
-
-    for (int j = 0; j < NUM_PRODUCTS; j++) {
-        g_cashiers[id].product_sold_list[j].productId = j;
-        g_cashiers[id].product_sold_list[j].quantity = 0;
+void init_cashier_queue(CashierQueue *queue) {
+    queue->front = 0;
+    queue->rear = 0;
+    queue->size = 0;
+    for (int i = 0; i < MAX_CLIENTS_PER_CASHIER; i++) {
+        queue->client_pids[i] = 0;
     }
-
-    init_cashier_queue(&g_cashiers[id].queue);
 }
 
-void init_cashiers(pthread_t cashiers[NUM_CASHIERS]) {
-    for (int i = 0; i < NUM_CASHIERS; i++) {
-        int* id = malloc(sizeof(int));
-        *id = i;
+void serve_next_client(int cashier_id) {
+    CashierQueue *queue = &shared_memory->cashier_queues[cashier_id];
 
-        init_cashier_info(i);
+    if (!is_queue_empty(queue)) {
+        pid_t client_pid = dequeue(queue);
 
+        send_log(PROCESS_CASHIER, "Cashier %d starting to serve client %d\n",
+                cashier_id, client_pid);
 
-        pthread_create(&cashiers[i], NULL, cashier_thread, (void*)id);
+        sleep(2);  // Symulacja czasu obsługi
+
+        kill(client_pid, SIGUSR1);  // Sygnał zakończenia obsługi
+
+        send_log(PROCESS_CASHIER, "Cashier %d finished serving client %d\n",
+                cashier_id, client_pid);
+    }
+}
+
+void cashier_process(int id) {
+    current_cashier_id = id;
+    init_cashier_signals();
+
+    send_log(PROCESS_CASHIER, "Cashier %d started process\n", id);
+
+    if(id == 0) {
+        shared_memory->cashier_active[id] = true;
+        cashier_active = true;
     }
 
+    while (cashier_running) {
+        read_cashier_signal(id);
+        log_cashier_status(id);
+
+        if (cashier_active && !is_queue_empty(&shared_memory->cashier_queues[id])) {
+            serve_next_client(id);
+        }
+
+        sleep(1);
+    }
+
+    while (is_queue_empty(&shared_memory->cashier_queues[id])) {
+        serve_next_client(id);
+        sleep(1);
+    }
+
+    send_log(PROCESS_CASHIER, "Cashier %d ended\n", id);
+}
+
+void init_cashiers() {
+    for (size_t i = 0; i < NUMBER_OF_CASHIERS; i++) {
+        pid_t cashier_pid = fork();
+
+        if (cashier_pid < 0) {
+            perror("Error creating cashier process");
+            exit(EXIT_FAILURE);
+        }
+
+        if (cashier_pid == 0) {
+            cashier_process(i);
+            close(shared_memory->log_pipe[0]);
+            exit(EXIT_SUCCESS);
+        } else {
+            shared_memory->cashier_pids[i] = cashier_pid;
+            printf("[MAIN] Created cashier %zu with PID: %d\n", i, cashier_pid);
+        }
+    }
 }

@@ -1,272 +1,189 @@
 #include <stdio.h>
 #include <stdlib.h>
-#include <pthread.h>
 #include <unistd.h>
-#include <stdarg.h>
+#include <sys/types.h>
+#include <signal.h>
+#include <time.h>
+
+#include "../include/shared_memory.h"
+#include "../include/logs.h"
 #include "../include/client.h"
-
+#include "../include/queue_utils.h"
 #include "../include/cashier.h"
-#include "../include/global.h"
 
-#define MIN_CLIENT_JOIN_TIME 1
-#define MAX_CLIENT_JOIN_TIME 2
+#define SIGUSR1 10
+#define SIGUSR2 12
 
-#define MIN_CLIENTS_PER_BATCH 1
-#define MAX_CLIENTS_PER_BATCH 4
+volatile sig_atomic_t client_running = 1;
 
-#define MIN_NEED_PER_PRODUCT 0
-#define MAX_NEED_PER_PRODUCT 12
+Client client_data;
 
-#define SHOPPING_TIME 1
-
-FILE* clientLogFile = NULL;
-
-void init_client_log() {
-    char clientLogPath[300];
-    snprintf(clientLogPath, sizeof(clientLogPath), "%s/client.txt", g_logBasePath);
-
-    if (mkdir("../logs") == -1) {
-        if (errno != EEXIST) {
-            fprintf(stderr, "Could not create directory 'logs': %s\n", strerror(errno));
-        }
-    }
-    if (mkdir(g_logBasePath) == -1) {
-        if (errno != EEXIST) {
-            fprintf(stderr, "Could not create directory '%s': %s\n", g_logBasePath, strerror(errno));
-        }
-    }
-
-    clientLogFile = fopen( clientLogPath, "w");
-
-    if (clientLogFile) {
-        setvbuf(clientLogFile, NULL, _IOLBF, 0);
-    } else {
-        fprintf(stderr, "Could not open log file '%s': %s\n", clientLogPath, strerror(errno));
-    }
+void client_signal_handler(int signum) {
+  printf("\n[CLIENT] Received signal %d. Preparing for shutdown...\n", signum);
+  client_running = 0;
 }
 
-void log_client(const char *format, ...)
-{
-
-    if (clientLogFile) {
-        va_list args;
-        va_start(args, format);
-        vfprintf(clientLogFile, format, args);
-        va_end(args);
-
-        fflush(clientLogFile);
-    }
+void cleanup_and_exit(CashierQueue *queue, int selected_cashier) {
+    send_log(PROCESS_CLIENT, "Client %d was served by cashier %d and is leaving store\n",
+             client_data.id, selected_cashier);
+    shared_memory->current_clients--;
+    close(shared_memory->log_pipe[0]);
+    exit(EXIT_SUCCESS);
 }
 
-void close_client_log(void) {
-    if (clientLogFile) {
-        fclose(clientLogFile);
-        clientLogFile = NULL;
-    }
-}
+void init_client_data() {
+    client_data.id = getpid();
+    client_data.isShopping = true;
 
-void get_products_from_shopping_list(Client *client) {
-    for(int i = 0; i < NUM_PRODUCTS; i++) {
-        int currentDispenserQuantity = g_dispenser[i].quantity;
-        int needed = client->shoppingList[i].needed;
+    int total_products_wanted = 0;
 
-        printf("\n\n[CLIENT %d] Dispenser ID %d has quantity before take %d \n", client->id, i, g_dispenser[i].quantity);
+    for (int i = 0; i < NUM_PRODUCTS; i++) {
+        client_data.shoppingList[i].productId = i;
+        client_data.shoppingList[i].taken = 0;
 
-        global_log_main("[time=%d]  [CLIENT %d] Dispenser ID %d has quantity before take %d \n", g_timeCounter,client->id, i, g_dispenser[i].quantity);
-        log_client("[time=%d]  [CLIENT %d] Dispenser ID %d has quantity before take %d \n",g_timeCounter, client->id, i, g_dispenser[i].quantity);
-
-        if (needed > 0 && currentDispenserQuantity > 0) {
-            int quantityToTake = needed > currentDispenserQuantity ? currentDispenserQuantity : needed;
-
-            pthread_mutex_lock(&g_mutex);
-            decrease_quantity(i, quantityToTake);
-            pthread_mutex_unlock(&g_mutex);
-
-            client->shoppingList[i].needed -= quantityToTake;
-            client->shoppingList[i].taken += quantityToTake;
-
-            printf("[CLIENT %d] Took %d products of type %d\n", client->id, quantityToTake, i);
-
-            global_log_main("[time=%d]  [CLIENT %d] Took %d products of type %d\n",g_timeCounter, client->id, quantityToTake, i);
-            log_client("[time=%d]  [CLIENT %d] Took %d products of type %d\n", g_timeCounter,client->id, quantityToTake, i);
-
+        if (rand() % 2 == 1) {
+            client_data.shoppingList[i].needed = (rand() % 5) + 1;
+            total_products_wanted++;
         } else {
-            printf("[CLIENT %d] Doesn't toke products of type %d\n", client->id, i);
-            global_log_main("[time=%d]  [CLIENT %d] Doesn't toke products of type %d\n",g_timeCounter, client->id, i);
-            log_client("[time=%d]  [CLIENT %d] Doesn't toke products of type %d\n",g_timeCounter, client->id, i);
-        }
-
-        printf("[CLIENT %d] Dispenser ID %d has quantity %d \n\n", i, g_dispenser[i].quantity);
-
-        global_log_main("[time=%d]  [CLIENT %d] Dispenser ID %d has quantity %d \n\n",g_timeCounter, i, g_dispenser[i].quantity);
-        log_client("[time=%d]  [CLIENT %d] Dispenser ID %d has quantity %d \n\n",g_timeCounter, i, g_dispenser[i].quantity);
-    }
-}
-
-void enqueueClient(CashierQueue* q, Client* client) {
-    pthread_mutex_lock(&q->mutex);
-    while (q->count == MAX_CLIENTS_PER_CASHIER && g_storeOpen) {
-        pthread_cond_wait(&q->notFull, &q->mutex);
-    }
-    pthread_mutex_unlock(&q->mutex);
-
-    pthread_mutex_lock(&q->mutex);
-
-    q->clients[q->rear] = client;
-    q->rear = (q->rear + 1) % MAX_CLIENTS_PER_CASHIER;
-    q->count++;
-
-    if (!g_storeOpen) {
-        return;
-    }
-
-    pthread_cond_signal(&q->notEmpty);
-    pthread_mutex_unlock(&q->mutex);
-}
-
-void* client_thread(void* arg) {
-    Client* client = (Client*)arg;
-
-    printf("[CLIENT %d] Entered the store.\n", client->id);
-
-    global_log_main("[time=%d]  [CLIENT %d] Entered the store.\n",g_timeCounter, client->id);
-    log_client("[time=%d]  [CLIENT %d] Entered the store.\n", g_timeCounter,client->id);
-
-    pthread_mutex_lock(&g_mutex);
-    g_currentClientsInStore++;
-    pthread_mutex_unlock(&g_mutex);
-
-    sleep(SHOPPING_TIME);
-    get_products_from_shopping_list(client);
-
-    pthread_mutex_lock(&g_mutex);
-
-    if (!g_storeOpen) {
-        printf("[CLIENT %d] Store closed right after shopping – client leaves.\n", client->id);
-
-        global_log_main("[time=%d]  [CLIENT %d] Store closed right after shopping – client leaves.\n",g_timeCounter, client->id);
-        log_client("[time=%d]  [CLIENT %d] Store closed right after shopping – client leaves.\n",g_timeCounter, client->id);
-
-        free(client);
-        g_currentClientsInStore--;
-        pthread_mutex_unlock(&g_mutex);
-        pthread_exit(NULL);
-    }
-
-    int openedCashiers[NUM_CASHIERS];
-    int openedCount = 0;
-    for (int i = 0; i < NUM_CASHIERS; i++) {
-        if (g_cashiers[i].is_open) {
-            openedCashiers[openedCount++] = i;
+            client_data.shoppingList[i].needed = 0;
         }
     }
-    pthread_mutex_unlock(&g_mutex);
 
-    if (openedCount == 0) {
-        printf("[CLIENT %d] No open cashiers, client leaves.\n", client->id);
-
-        global_log_main("[time=%d]  [CLIENT %d] No open cashiers, client leaves.\n",g_timeCounter, client->id);
-        log_client("[time=%d]  [CLIENT %d] No open cashiers, client leaves.\n", g_timeCounter,client->id);
-
-        free(client);
-        pthread_mutex_lock(&g_mutex);
-        g_currentClientsInStore--;
-        pthread_mutex_unlock(&g_mutex);
-        pthread_exit(NULL);
+    if (total_products_wanted == 0) {
+        int random_product = rand() % NUM_PRODUCTS;
+        client_data.shoppingList[random_product].needed = (rand() % 5) + 1;
+        total_products_wanted = 1;
     }
 
-    int chosenIdx = rand() % openedCount;
-    int chosenCashierId = openedCashiers[chosenIdx];
-    printf("[CLIENT %d] Joins queue of cashier %d\n", client->id, chosenCashierId);
+    send_log(PROCESS_CLIENT, "Client %d initialized, wants %d different products\n",
+             client_data.id, total_products_wanted);
 
-    global_log_main("[time=%d]  [CLIENT %d] Joins queue of cashier %d\n",g_timeCounter, client->id, chosenCashierId);
-    log_client("[time=%d]  [CLIENT %d] Joins queue of cashier %d\n",g_timeCounter, client->id, chosenCashierId);
-
-    enqueueClient(&g_cashiers[chosenCashierId].queue, client);
-
-    if (openedCount == 0) {
-        printf("[CLIENT %d] No open cashiers, client leaves.\n", client->id);
-
-        global_log_main("[time=%d]  [CLIENT %d] No open cashiers, client leaves.\n", g_timeCounter,client->id);
-        log_client("[time=%d]  [CLIENT %d] No open cashiers, client leaves.\n",g_timeCounter, client->id);
-
-        free(client);
-        pthread_mutex_lock(&g_mutex);
-        g_currentClientsInStore--;
-        pthread_mutex_unlock(&g_mutex);
-        pthread_exit(NULL);
+    for (int i = 0; i < NUM_PRODUCTS; i++) {
+        if (client_data.shoppingList[i].needed > 0) {
+            // send_log(PROCESS_CLIENT, "Client %d needs %d of product %d\n",
+            //         client_data.id, client_data.shoppingList[i].needed, i);
+        }
     }
-
-    pthread_mutex_lock(&g_mutex);
-    pthread_cond_wait(&client->served, &g_mutex);
-    pthread_mutex_unlock(&g_mutex);
-
-    printf("[CLIENT %d] Leaves cashier %d and exits store.\n", client->id, chosenCashierId);
-
-    global_log_main("[time=%d]  [CLIENT %d] Leaves cashier %d and exits store.\n",g_timeCounter, client->id, chosenCashierId);
-    log_client("[time=%d]  [CLIENT %d] Leaves cashier %d and exits store.\n",g_timeCounter, client->id, chosenCashierId);
-
-    free(client);
-
-    pthread_mutex_lock(&g_mutex);
-    g_currentClientsInStore--;
-    pthread_mutex_unlock(&g_mutex);
-
-    pthread_exit(NULL);
 }
 
-Client* init_and_get_client_info(int id) {
-    Client* client = malloc(sizeof(Client));
+void client_shopping() {
+    for (int i = 0; i < NUM_PRODUCTS; i++) {
+        if (client_data.shoppingList[i].needed > 0) {
+            int needed = client_data.shoppingList[i].needed;
+            int productId = client_data.shoppingList[i].productId;
+            int quantity = 0;
 
-    client->id = id;
-    client->isShopping = false;
+            // Atomic operation to check and update quantity
+            __sync_synchronize();  // Memory barrier
+            int available = shared_memory->dispensers[productId].quantity;
 
-    pthread_cond_init(&client->served, NULL);
+            if (available < needed) {
+                quantity = available;
+                shared_memory->dispensers[productId].quantity = 0;
+            } else {
+                quantity = needed;
+                shared_memory->dispensers[productId].quantity -= needed;
+            }
+            __sync_synchronize();  // Memory barrier
 
-    for(int j = 0; j < NUM_PRODUCTS; j++) {
-        int neededQuantity = (rand() % (MAX_NEED_PER_PRODUCT - MIN_NEED_PER_PRODUCT + 1)) + MIN_NEED_PER_PRODUCT;
-
-        client->shoppingList[j].productId = j;
-        client->shoppingList[j].needed = neededQuantity;
-        client->shoppingList[j].taken = 0;
+            client_data.shoppingList[i].taken = quantity;
+        }
     }
-
-    return client;
 }
 
-void init_clients() {
-    pthread_mutex_lock(&g_mutex);
-    while (!g_storeOpen) {
-        pthread_cond_wait(&g_condStore, &g_mutex);
+int get_open_cashiers() {
+    int open_cashiers = 0;
+    for (int i = 0; i < NUMBER_OF_CASHIERS; i++) {
+        if (shared_memory->cashier_active[i]) {
+            open_cashiers++;
+        }
     }
-    pthread_mutex_unlock(&g_mutex);
+    return open_cashiers;
+}
 
-    int client_id = 0;
-
-    while (g_storeOpen) {
+void wait_for_open_cashiers() {
+    while (get_open_cashiers() == 0 && client_running) {
+        send_log(PROCESS_CLIENT, "Client %d waiting for open cashier\n", client_data.id);
         sleep(1);
-
-        int interval_sec = (rand() % (MAX_CLIENT_JOIN_TIME - MIN_CLIENT_JOIN_TIME + 1)) + MIN_CLIENT_JOIN_TIME;
-        sleep(interval_sec);
-
-        if (!g_storeOpen) {
-            break;
-        }
-
-        int batch_size = (rand() % (MAX_CLIENTS_PER_BATCH - MIN_CLIENTS_PER_BATCH + 1)) + MIN_CLIENTS_PER_BATCH;
-
-        for (int i = 0; i < batch_size; i++) {
-            Client* client = init_and_get_client_info(client_id);
-
-            pthread_t clientT;
-            pthread_create(&clientT, NULL, client_thread, (void*)client);
-
-            pthread_detach(clientT);
-
-            client_id++;
-        }
     }
-
-    printf("[INIT_CLIENTS] Store closed. Stoped creating clients.\n");
 }
 
+void client_process() {
+    signal(SIGTERM, client_signal_handler);
+    signal(SIGUSR1, client_signal_handler);
+    srand(time(NULL) ^ getpid());
+
+    pid_t client_pid = getpid();
+    send_log(PROCESS_CLIENT, "Client process started with PID: %d\n", client_pid);
+
+    init_client_data();
+
+    send_log(PROCESS_CLIENT, "Client %d is shopping\n", client_data.id);
+    sleep(SHOPPING_TIME);
+    client_shopping();
+
+    wait_for_open_cashiers();
+
+    // Wybór kasjera i dodanie do kolejki
+    int selected_cashier = rand() % NUMBER_OF_CASHIERS;
+    while (!shared_memory->cashier_active[selected_cashier]) {
+        selected_cashier = (selected_cashier + 1) % NUMBER_OF_CASHIERS;
+    }
+
+    send_log(PROCESS_CLIENT, "Client %d selected cashier %d\n", client_data.id, selected_cashier);
+
+    CashierQueue *selected_queue = &shared_memory->cashier_queues[selected_cashier];
+
+    // Czekaj jeśli kolejka jest pełna
+    while (is_queue_full(selected_queue) && client_running) {
+        send_log(PROCESS_CLIENT, "Client %d waiting - queue %d is full\n", client_data.id, selected_cashier);
+        sleep(1);
+    }
+
+    if (!client_running) return;
+
+    // Dodaj do kolejki używając funkcji z queue_utils
+    if (enqueue(selected_queue, client_pid)) {
+        send_log(PROCESS_CLIENT, "Client %d joined queue for cashier %d at position %d\n",
+                 client_data.id, selected_cashier,
+                 get_queue_position(selected_queue, client_pid));
+    }
+
+    // Czekaj na obsłużenie
+    while (client_running) {
+        int position = get_queue_position(selected_queue, client_pid);
+        if (position == -1) {  // No longer in queue
+            cleanup_and_exit(selected_queue, selected_cashier);
+            return;
+        }
+        if (position == 1) {
+            send_log(PROCESS_CLIENT, "Client %d is first in line for cashier %d\n",
+                     client_data.id, selected_cashier);
+        }
+        sleep(1);
+    }
+
+    cleanup_and_exit(selected_queue, selected_cashier);
+}
+
+void create_client() {
+    pid_t client_pid = fork();
+
+    if(client_pid < 0) {
+        send_log(PROCESS_CLIENT, "Error creating client process\n");
+        exit(EXIT_FAILURE);
+    }
+    if(client_pid == 0) {
+        shared_memory->current_clients++;
+        client_process();
+        close(shared_memory->log_pipe[1]);  // Close write end
+        close(shared_memory->log_pipe[0]);  // Close read end
+        exit(EXIT_SUCCESS);
+    }
+}
+
+void init_new_clients(int new_clients) {
+  for (int i = 0; i < new_clients; i++) {
+    create_client();
+  }
+}

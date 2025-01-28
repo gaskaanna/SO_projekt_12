@@ -12,11 +12,7 @@ typedef struct {
     int capacity;
 } Product_dispenser;
 
-extern Product_dispenser g_dispenser[NUM_PRODUCTS];
-
-void init_dispensers();
-void show_dispenser();
-
+void init_dispensers(void);
 void decrease_quantity(int product_id, int quantity);
 
 #endif //SO_PROJEKT_DISPENSER_H
