@@ -2,25 +2,17 @@
 #define SO_PROJEKT_CASHIER_H
 
 #include <stdbool.h>
-#include <sys/types.h>
-
-#define NUMBER_OF_CASHIERS 3
-#define MAX_CLIENTS_IN_STORE 30
-#define MAX_CLIENTS_PER_CASHIER (MAX_CLIENTS_IN_STORE / NUMBER_OF_CASHIERS)
-
-typedef struct {
-    pid_t client_pids[MAX_CLIENTS_PER_CASHIER];
-    int front;
-    int rear;
-    int size;
-} CashierQueue;
+#include "queue_types.h"
+#include "queue_utils.h"
 
 typedef struct {
     int id;
     bool is_open;
 } Cashier;
 
+void init_cashier_queue(CashierQueue *queue);
 void init_cashiers(void);
+void cashier_process(int id);
 
 #endif //SO_PROJEKT_CASHIER_H
 

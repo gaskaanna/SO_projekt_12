@@ -18,7 +18,6 @@ struct shared_data {
     pid_t manager_pid;
     pid_t baker_pid;
     pid_t cashier_pids[NUMBER_OF_CASHIERS];
-    int log_pipe[2];
     int created_clients;
     int current_clients;
     bool cashier_active[NUMBER_OF_CASHIERS];

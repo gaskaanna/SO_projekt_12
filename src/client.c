@@ -23,11 +23,10 @@ void client_signal_handler(int signum) {
   client_running = 0;
 }
 
-void cleanup_and_exit(CashierQueue *queue, int selected_cashier) {
+void cleanup_and_exit(CashierQueue *queue __attribute__((unused)), int selected_cashier) {
     send_log(PROCESS_CLIENT, "Client %d was served by cashier %d and is leaving store\n",
              client_data.id, selected_cashier);
     shared_memory->current_clients--;
-    close(shared_memory->log_pipe[0]);
     exit(EXIT_SUCCESS);
 }
 
@@ -73,20 +72,23 @@ void client_shopping() {
             int productId = client_data.shoppingList[i].productId;
             int quantity = 0;
 
-            // Atomic operation to check and update quantity
-            __sync_synchronize();  // Memory barrier
+            __sync_synchronize();
             int available = shared_memory->dispensers[productId].quantity;
 
             if (available < needed) {
                 quantity = available;
                 shared_memory->dispensers[productId].quantity = 0;
+
             } else {
                 quantity = needed;
                 shared_memory->dispensers[productId].quantity -= needed;
+
             }
-            __sync_synchronize();  // Memory barrier
+            __sync_synchronize();
 
             client_data.shoppingList[i].taken = quantity;
+            send_log(PROCESS_CLIENT, "Client %d has %d of product %d\n",
+                     client_data.id, client_data.shoppingList[i].taken, i);
         }
     }
 }
@@ -124,7 +126,6 @@ void client_process() {
 
     wait_for_open_cashiers();
 
-    // Wybór kasjera i dodanie do kolejki
     int selected_cashier = rand() % NUMBER_OF_CASHIERS;
     while (!shared_memory->cashier_active[selected_cashier]) {
         selected_cashier = (selected_cashier + 1) % NUMBER_OF_CASHIERS;
@@ -134,7 +135,6 @@ void client_process() {
 
     CashierQueue *selected_queue = &shared_memory->cashier_queues[selected_cashier];
 
-    // Czekaj jeśli kolejka jest pełna
     while (is_queue_full(selected_queue) && client_running) {
         send_log(PROCESS_CLIENT, "Client %d waiting - queue %d is full\n", client_data.id, selected_cashier);
         sleep(1);
@@ -142,17 +142,14 @@ void client_process() {
 
     if (!client_running) return;
 
-    // Dodaj do kolejki używając funkcji z queue_utils
     if (enqueue(selected_queue, client_pid)) {
         send_log(PROCESS_CLIENT, "Client %d joined queue for cashier %d at position %d\n",
                  client_data.id, selected_cashier,
                  get_queue_position(selected_queue, client_pid));
     }
-
-    // Czekaj na obsłużenie
     while (client_running) {
         int position = get_queue_position(selected_queue, client_pid);
-        if (position == -1) {  // No longer in queue
+        if (position == -1) {
             cleanup_and_exit(selected_queue, selected_cashier);
             return;
         }
@@ -176,14 +173,13 @@ void create_client() {
     if(client_pid == 0) {
         shared_memory->current_clients++;
         client_process();
-        close(shared_memory->log_pipe[1]);  // Close write end
-        close(shared_memory->log_pipe[0]);  // Close read end
         exit(EXIT_SUCCESS);
     }
 }
 
 void init_new_clients(int new_clients) {
-  for (int i = 0; i < new_clients; i++) {
-    create_client();
-  }
+    for (int i = 0; i < new_clients; i++) {
+        create_client();
+    }
+    sleep(3);
 }

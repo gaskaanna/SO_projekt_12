@@ -94,9 +94,22 @@ void serve_next_client(int cashier_id) {
         send_log(PROCESS_CASHIER, "Cashier %d starting to serve client %d\n",
                 cashier_id, client_pid);
 
-        sleep(2);  // Symulacja czasu obsługi
+        for (int i = 0; i < NUM_PRODUCTS; i++) {
+            if (shared_memory->dispensers[i].quantity > 0) {
+                int amount_to_sell = 1 + rand() % 3;
+                if (amount_to_sell > shared_memory->dispensers[i].quantity) {
+                    amount_to_sell = shared_memory->dispensers[i].quantity;
+                }
+                shared_memory->dispensers[i].quantity -= amount_to_sell;
+                shared_memory->dispensers[i].total_sold += amount_to_sell;
 
-        kill(client_pid, SIGUSR1);  // Sygnał zakończenia obsługi
+                send_log(PROCESS_CASHIER, "Cashier %d sold %d products from dispenser %d to client %d\n",
+                        cashier_id, amount_to_sell, i, client_pid);
+            }
+        }
+
+        sleep(2);
+        kill(client_pid, SIGUSR1);
 
         send_log(PROCESS_CASHIER, "Cashier %d finished serving client %d\n",
                 cashier_id, client_pid);
@@ -144,7 +157,6 @@ void init_cashiers() {
 
         if (cashier_pid == 0) {
             cashier_process(i);
-            close(shared_memory->log_pipe[0]);
             exit(EXIT_SUCCESS);
         } else {
             shared_memory->cashier_pids[i] = cashier_pid;

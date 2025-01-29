@@ -14,68 +14,60 @@
 #include "../include/shared_memory.h"
 #include "../include/cashier.h"
 #include "../include/queue_utils.h"
-
+#include "../include/logs.h"
+#include "../include/main.h"
 int shmid;
 struct shared_data *shared_memory;
 
 void cleanup_memory() {
-    close(shared_memory->log_pipe[0]);
-    close(shared_memory->log_pipe[1]);
-
-    if (shared_memory != NULL) {
-        if (shmdt(shared_memory) == -1) {
-            perror("shmdt");
+    if (shmid != -1) {
+        if (shmctl(shmid, IPC_RMID, NULL) == -1) {
+            perror("shmctl failed");
+            exit(EXIT_FAILURE);
         }
-    }
-
-    if (shmctl(shmid, IPC_RMID, NULL) == -1) {
-        perror("shmctl");
-    }
-}
-
-void init_shared_memory(){
-    shmid = shmget(SHM_KEY, sizeof(struct shared_data), IPC_CREAT | 0666);
-    if (shmid == -1) {
-        perror("shmget");
-        return;
-    }
-
-    shared_memory = (struct shared_data *)shmat(shmid, NULL, 0);
-    if (shared_memory == (void *)-1) {
-        perror("shmat");
-        shmctl(shmid, IPC_RMID, NULL);
-        return;
-    }
-
-    memset(shared_memory, 0, sizeof(struct shared_data));
-
-    if (pipe(shared_memory->log_pipe) == -1) {
-        perror("pipe");
-        cleanup_memory();
-        return;
-    }
-
-    int flags = fcntl(shared_memory->log_pipe[0], F_GETFL);
-    fcntl(shared_memory->log_pipe[0], F_SETFL, flags | O_NONBLOCK);
-
-    for (int i = 0; i < NUMBER_OF_CASHIERS; i++) {
-        init_queue(&shared_memory->cashier_queues[i]);
-        shared_memory->currently_served[i] = 0;
     }
 }
 
 void handle_signal(int signum) {
-    printf("\n[MAIN] Received signal %d. Shutting down...\n", signum);
-
-    if(signum == SIGINT) printf("SIGINT");
-    if(signum == SIGTERM) printf("SIGTERM");
-
+    printf("\nReceived signal %d\n", signum);
+    if (signum == SIGINT || signum == SIGTSTP) {
+        send_log(PROCESS_MAIN, "Received %s signal. Starting evacuation...\n",
+                signum == SIGINT ? "SIGINT" : "SIGTSTP");
+        start_evacuation();
+    }
     cleanup_memory();
-    exit(EXIT_SUCCESS);
+    cleanup_logging();
+    exit(signum);
+}
+
+void init_shared_memory() {
+    shmid = shmget(SHM_KEY, sizeof(struct shared_data), IPC_CREAT | 0666);
+    if (shmid == -1) {
+        perror("shmget failed");
+        exit(EXIT_FAILURE);
+    }
+
+    shared_memory = shmat(shmid, NULL, 0);
+    if (shared_memory == (void *)-1) {
+        perror("shmat failed");
+        exit(EXIT_FAILURE);
+    }
+
+    shared_memory->manager_pid = getpid();
+    shared_memory->baker_pid = 0;
+    shared_memory->created_clients = 0;
+    shared_memory->current_clients = 0;
+
+    for (int i = 0; i < NUMBER_OF_CASHIERS; i++) {
+        shared_memory->cashier_pids[i] = 0;
+        shared_memory->cashier_active[i] = false;
+        init_cashier_queue(&shared_memory->cashier_queues[i]);
+        shared_memory->currently_served[i] = 0;
+    }
 }
 
 void send_shutdown_signal(pid_t pid) {
-    if (pid > 0) {
-        kill(pid, SIGTERM);
+    if (kill(pid, SIGTERM) == -1) {
+        perror("kill failed");
     }
 }

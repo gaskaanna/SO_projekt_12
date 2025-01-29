@@ -2,23 +2,23 @@
 #define LOGS_H
 
 #include <stdio.h>
+#include <stdlib.h>
 #include <stdarg.h>
 #include <unistd.h>
+#include <time.h>
+
+#define MAX_LOG_LENGTH 256
 
 typedef enum {
+    PROCESS_MAIN,
     PROCESS_BAKER,
     PROCESS_CASHIER,
     PROCESS_CLIENT,
 } ProcessType;
 
-#define MAX_LOG_LENGTH 256
-
-struct log_message {
-    ProcessType sender;
-    char content[MAX_LOG_LENGTH];
-};
-
+void init_logging(const char* base_filename);
 void send_log(ProcessType sender, const char *format, ...);
-void read_log(void);
+void cleanup_logging(void);
 
 #endif
+

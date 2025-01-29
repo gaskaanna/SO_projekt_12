@@ -15,37 +15,53 @@
 #include "../include/client.h"
 
 #define OPEN_BAKERY_TIME 5
-#define CLOSE_BAKERY_TIME 180
+#define CLOSE_BAKERY_TIME 20
+#define CLOSE_SIMULATION_TIME 25
 
 int main(void) {
     signal(SIGINT, handle_signal);
+    signal(SIGTSTP, handle_signal);
     signal(SIGTERM, handle_signal);
 
+    init_logging("logs/bakery");
+
     my_pid = getpid();
-    printf("[MAIN] Main process started with PID: %d\n", my_pid);
+    send_log(PROCESS_MAIN, "Main process started with PID: %d\n", my_pid);
 
     init_shared_memory();
-    shared_memory->manager_pid = getpid();
-
     init_dispensers();
     init_baker();
     init_cashiers();
 
+    shared_memory->manager_pid = my_pid;
+
+    srand(time(NULL));
+    g_currentTime = 0;
+
     while(1) {
         sleep(1);
         g_currentTime++;
-        printf("[MAIN] Current time: %d\n", g_currentTime);
-        read_log();
+
+        send_log(PROCESS_MAIN, "Current time: %d\n", g_currentTime);
 
         int new_clients = calculate_new_clients();
         init_new_clients(new_clients);
 
-        if(g_currentTime == CLOSE_BAKERY_TIME) {
-            printf("[MAIN] End of simulation. PID: %d\n", my_pid);
+        if(g_currentTime == CLOSE_SIMULATION_TIME) {
+            send_log(PROCESS_MAIN, "End of simulation. PID: %d\n", my_pid);
             stop_simulation();
             cleanup_memory();
             break;
         }
+
+        if(g_currentTime == CLOSE_BAKERY_TIME) {
+            send_log(PROCESS_MAIN, "Bakery is closing, performing inventory...\n");
+            stop_all_processes();
+            start_perform_inventory();
+            continue;
+        }
+
+        if (rand() % 100000 == 0) start_evacuation();
 
         int cashiers_needed = calculate_cashiers_needed(shared_memory->current_clients);
 
@@ -56,9 +72,11 @@ int main(void) {
                 deactivate_cashier(i);
             }
         }
+
     }
 
     cleanup_memory();
-    printf("[MAIN] End of simulation. PID: %d\n", my_pid);
+    cleanup_logging();
+    send_log(PROCESS_MAIN, "End of simulation. PID: %d\n", my_pid);
     return 0;
 }

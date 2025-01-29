@@ -44,8 +44,9 @@ void adding_to_dispenser(int *dispensers_to_update, int num_dispenser_to_update)
                     target_id, target->quantity);
 
             target->quantity += quantity_to_add;
-            send_log(PROCESS_BAKER, "Added %d products to dispenser %d. New quantity: %d\n",
-                    quantity_to_add, target_id, target->quantity);
+            target->total_produced += quantity_to_add;
+            send_log(PROCESS_BAKER, "Added %d products to dispenser %d. New quantity: %d (Total produced: %d)\n",
+                    quantity_to_add, target_id, target->quantity, target->total_produced);
         } else {
             send_log(PROCESS_BAKER, "Dispenser %d is full. Cannot add more products.\n",
                     target_id);
@@ -129,7 +130,6 @@ void init_baker() {
     }
     if(baker_pid == 0) {
         baker_process();
-        close(shared_memory->log_pipe[0]);
         exit(EXIT_SUCCESS);
     }
 }
